@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock — FinSaathi</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f0f4f8; color: #1a1a2e; }
+    nav { background: white; padding: 1rem 1.5rem; display: flex;
+          justify-content: space-between; align-items: center;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    nav h2 { color: #4f46e5; font-size: 1.2rem; }
+    nav div { display: flex; gap: 1rem; }
+    nav a { color: #666; text-decoration: none; font-size: 0.9rem; }
+    .container { max-width: 700px; margin: 0 auto; padding: 1.5rem; }
+    .card { background: white; border-radius: 12px; padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 1rem; }
+    .stock-name { font-size: 1.3rem; font-weight: 700; }
+    .stock-sym { color: #888; font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .stock-price { font-size: 2rem; font-weight: 700; margin: 0.5rem 0; }
+    .change { font-size: 1rem; font-weight: 600; }
+    .green { color: #16a34a; } .red { color: #dc2626; }
+    .chart-wrap { height: 220px; margin: 1rem 0; }
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+    .stat-label { font-size: 0.8rem; color: #888; }
+    .stat-val { font-size: 1rem; font-weight: 600; }
+    .ai-take { background: #eef2ff; border-radius: 8px; padding: 1rem;
+               font-size: 0.9rem; color: #3730a3; line-height: 1.6; margin-top: 1rem; }
+    .trade-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+    input { width: 100%; padding: 0.7rem; border: 1.5px solid #e0e0e0;
+            border-radius: 8px; font-size: 0.95rem; margin-bottom: 0.7rem; }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    .btn-buy { background: #16a34a; color: white; border: none; padding: 0.8rem;
+               border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 600; }
+    .btn-sell { background: #dc2626; color: white; border: none; padding: 0.8rem;
+                border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 600; }
+    .msg { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;
+           padding: 0.6rem; font-size: 0.85rem; color: #166534; margin-top: 0.5rem; }
+    .err { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
+           padding: 0.6rem; font-size: 0.85rem; color: #991b1b; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <nav>
+    <h2>FinSaathi</h2>
+    <div>
+      <a href="/watchlist">Back to watchlist</a>
+      <a href="/dashboard">Dashboard</a>
+    </div>
+  </nav>
+  <div class="container" id="content">
+    <div class="card">Loading stock data...</div>
+  </div>
+  <script>
+    const symbol = "{{ symbol }}";
+
+    async function loadStock() {
+      const res = await fetch('/api/stock/' + symbol);
+      const d = await res.json();
+      const content = document.getElementById('content');
+
+      if (d.error) {
+        content.innerHTML = `<div class="card">${d.error}</div>`;
+        return;
+      }
+
+      const change = d.current_price - d.prev_close;
+      const changePct = d.prev_close ? ((change / d.prev_close) * 100).toFixed(2) : '0.00';
+      const isUp = change >= 0;
+
+      // Chart will be drawn after HTML is inserted
+
+      content.innerHTML = `
+        <div class="card">
+          <div class="stock-name">${d.name}</div>
+          <div class="stock-sym">${d.symbol} — NSE</div>
+          <div class="stock-price">₹${d.current_price.toLocaleString('en-IN')}</div>
+          <div class="change ${isUp ? 'green' : 'red'}">
+            ${isUp ? '+' : ''}${change.toFixed(2)} (${changePct}%) today
+          </div>
+          <div class="chart-wrap"><canvas id="priceChart"></canvas></div>
+          <div class="stats-grid">
+            <div><div class="stat-label">52w high</div><div class="stat-val">₹${d.year_high.toLocaleString('en-IN')}</div></div>
+            <div><div class="stat-label">52w low</div><div class="stat-val">₹${d.year_low.toLocaleString('en-IN')}</div></div>
+            <div><div class="stat-label">Open</div><div class="stat-val">₹${d.open.toLocaleString('en-IN')}</div></div>
+            <div><div class="stat-label">Prev close</div><div class="stat-val">₹${d.prev_close.toLocaleString('en-IN')}</div></div>
+            <div><div class="stat-label">Day high</div><div class="stat-val">₹${d.day_high.toLocaleString('en-IN')}</div></div>
+            <div><div class="stat-label">Day low</div><div class="stat-val">₹${d.day_low.toLocaleString('en-IN')}</div></div>
+          </div>
+          <div class="ai-take">
+            <strong>FinSaathi quick take:</strong> ${d.ai_take}
+          </div>
+        </div>
+        <div class="card">
+          <div class="trade-row">
+            <input id="qty" type="number" placeholder="Quantity" min="1" value="1">
+            <div style="display:flex;align-items:center;color:#888;font-size:0.9rem">
+              Estimated total: ₹<span id="est-total">${d.current_price}</span>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn-buy" onclick="trade('buy')">Buy</button>
+            <button class="btn-sell" onclick="trade('sell')">Sell</button>
+          </div>
+          <div id="trade-msg"></div>
+        </div>
+      `;
+const ctx = document.getElementById('priceChart');
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: d.chart_dates,
+          datasets: [{
+            data: d.chart_data,
+            borderColor: isUp ? '#16a34a' : '#dc2626',
+            backgroundColor: isUp ? 'rgba(22,163,74,0.08)' : 'rgba(220,38,38,0.08)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              ticks: { maxTicksLimit: 6, font: { size: 11 }, color: '#888' },
+              grid: { display: false }
+            },
+            y: {
+              ticks: { font: { size: 11 }, color: '#888' },
+              grid: { color: '#f0f0f0' }
+            }
+          }
+        }
+      });
+
+      document.getElementById('qty').addEventListener('input', (e) => {
+        const qty = parseInt(e.target.value) || 0;
+        document.getElementById('est-total').textContent =
+          (qty * d.current_price).toLocaleString('en-IN');
+      });
+    }
+
+    async function trade(action) {
+      const qty = parseInt(document.getElementById('qty').value);
+      if (!qty || qty <= 0) return;
+
+      const res = await fetch('/api/trade', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({symbol, action, qty})
+      });
+      const d = await res.json();
+      const msgEl = document.getElementById('trade-msg');
+      msgEl.className = d.success ? 'msg' : 'err';
+      msgEl.textContent = d.message || d.error;
+    }
+
+    loadStock();
+  </script>
+</body>
+</html>

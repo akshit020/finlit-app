@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Watchlist — FinSaathi</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f0f4f8; color: #1a1a2e; }
+    nav { background: white; padding: 1rem 1.5rem; display: flex;
+          justify-content: space-between; align-items: center;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    nav h2 { color: #4f46e5; font-size: 1.2rem; }
+    nav div { display: flex; gap: 1rem; }
+    nav a { color: #666; text-decoration: none; font-size: 0.9rem; }
+    nav a:hover { color: #4f46e5; }
+    .container { max-width: 700px; margin: 0 auto; padding: 1.5rem; }
+    h3 { font-size: 1.1rem; margin-bottom: 1rem; }
+    .card { background: white; border-radius: 12px; padding: 1.2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .add-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .add-row input { flex: 1; padding: 0.7rem; border: 1.5px solid #e0e0e0;
+                     border-radius: 8px; font-size: 0.95rem; }
+    .add-row button { background: #4f46e5; color: white; border: none;
+                       padding: 0.7rem 1.2rem; border-radius: 8px; cursor: pointer; }
+    .wl-row { display: flex; justify-content: space-between; align-items: center;
+              padding: 0.8rem 0.5rem; border-bottom: 1px solid #f0f0f0;
+              cursor: pointer; }
+    .wl-row:last-child { border: none; }
+    .wl-row:hover { background: #f8f9ff; border-radius: 8px; }
+    .wl-name { font-weight: 600; }
+    .wl-sub { font-size: 0.8rem; color: #888; }
+    .wl-price { font-weight: 600; text-align: right; }
+    .remove-btn { background: none; border: none; color: #dc2626;
+                   cursor: pointer; font-size: 0.85rem; margin-left: 1rem; }
+    .empty { text-align: center; color: #888; padding: 2rem; }
+    .err { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
+           padding: 0.6rem; font-size: 0.85rem; color: #991b1b; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <nav>
+    <h2>FinSaathi</h2>
+    <div>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/watchlist">Watchlist</a>
+      <a href="/orders">Orders</a>
+      <a href="/learn">Learn</a>
+      <a href="/logout">Logout</a>
+    </div>
+  </nav>
+  <div class="container">
+    <h3>Your watchlist</h3>
+    <div class="card">
+      <div class="add-row">
+        <input id="new-symbol" type="text" placeholder="Add stock e.g. WIPRO, ITC, SBIN"
+               oninput="this.value=this.value.toUpperCase()"
+               onkeydown="if(event.key==='Enter') addStock()">
+        <button onclick="addStock()">Add</button>
+      </div>
+      <div id="error-box"></div>
+      <div id="watchlist-body">
+        <div class="empty">Loading...</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    async function loadWatchlist() {
+      const res = await fetch('/api/watchlist');
+      const items = await res.json();
+      const body = document.getElementById('watchlist-body');
+      if (!items.length) {
+        body.innerHTML = '<div class="empty">No stocks yet. Add one above — try RELIANCE, TCS, or INFY</div>';
+        return;
+      }
+      body.innerHTML = items.map(s => `
+        <div class="wl-row" onclick="goToStock('${s.symbol}')">
+          <div>
+            <div class="wl-name">${s.symbol}</div>
+            <div class="wl-sub">${s.name}</div>
+          </div>
+          <div style="display:flex;align-items:center">
+            <div class="wl-price">₹${s.price.toLocaleString('en-IN')}</div>
+            <button class="remove-btn" onclick="event.stopPropagation(); removeStock('${s.symbol}')">Remove</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function goToStock(symbol) {
+      window.location = '/stock/' + symbol;
+    }
+
+    async function addStock() {
+      const symbol = document.getElementById('new-symbol').value.trim();
+      if (!symbol) return;
+      const res = await fetch('/api/watchlist/add', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({symbol})
+      });
+      const data = await res.json();
+      const errBox = document.getElementById('error-box');
+      if (data.error) {
+        errBox.innerHTML = `<div class="err">${data.error}</div>`;
+      } else {
+        errBox.innerHTML = '';
+        document.getElementById('new-symbol').value = '';
+        loadWatchlist();
+      }
+    }
+
+    async function removeStock(symbol) {
+      await fetch('/api/watchlist/remove', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({symbol})
+      });
+      loadWatchlist();
+    }
+
+    loadWatchlist();
+  </script>
+</body>
+</html>

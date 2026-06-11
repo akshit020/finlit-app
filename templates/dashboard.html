@@ -54,6 +54,10 @@
            padding: 0.6rem; font-size: 0.85rem; color: #166534; margin-top: 0.5rem; }
     .err { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
            padding: 0.6rem; font-size: 0.85rem; color: #991b1b; margin-top: 0.5rem; }
+.holdings-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8rem;
+                     margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #f0f0f0; }
+.hs-label { font-size: 0.75rem; color: #888; margin-bottom: 0.2rem; }
+.hs-val { font-size: 1.1rem; font-weight: 700; }
     @media(max-width:640px) { .grid-3,.grid-2 { grid-template-columns:1fr; } }
   </style>
 </head>
@@ -62,6 +66,8 @@
     <h2>FinSaathi</h2>
     <div>
       <span class="username">{{ username.title() }}</span>
+      <a href="/watchlist">Watchlist</a>
+      <a href="/orders">Orders</a>
       <a href="/learn">Learn</a>
       <a href="/logout">Logout</a>
     </div>
@@ -105,8 +111,27 @@
       <!-- Holdings -->
       <div class="card">
         <h3>Your holdings</h3>
+        <div class="holdings-summary">
+          <div>
+            <div class="hs-label">Total invested</div>
+            <div class="hs-val" id="hs-invested">₹0</div>
+          </div>
+          <div>
+            <div class="hs-label">Current value</div>
+            <div class="hs-val" id="hs-current">₹0</div>
+          </div>
+          <div>
+            <div class="hs-label">Day's P&L</div>
+            <div class="hs-val" id="hs-day">₹0</div>
+          </div>
+          <div>
+            <div class="hs-label">Total P&L</div>
+            <div class="hs-val" id="hs-total">₹0</div>
+          </div>
+        </div>
         <table>
-          <thead><tr><th>Stock</th><th>Qty</th><th>Price</th><th>Value</th></tr></thead>
+          <thead><tr><th>Stock</th><th>Qty</th><th>Avg cost</th><th>LTP</th><th>Invested</th><th>Cur. val</th><th>P&L</th><th>Net chg</th><th>Day chg</th></tr></thead>
+
           <tbody id="holdings-table"><tr><td colspan="4" style="color:#888">No stocks yet</td></tr></tbody>
         </table>
       </div>
@@ -153,13 +178,37 @@
       el.textContent = (gain >= 0 ? '+' : '') + '₹' + gain.toLocaleString('en-IN') + ' (' + pct + '%)';
       el.className = 'metric-sub ' + (gain >= 0 ? 'green' : 'red');
       
+      // Summary cards
+      document.getElementById('hs-invested').textContent = '₹' + d.total_invested.toLocaleString('en-IN');
+      document.getElementById('hs-current').textContent = '₹' + d.portfolio_value.toLocaleString('en-IN');
+
+      const dayEl = document.getElementById('hs-day');
+      dayEl.textContent = (d.day_pnl >= 0 ? '+' : '') + '₹' + d.day_pnl.toLocaleString('en-IN') + ' (' + d.day_pnl_pct + '%)';
+      dayEl.className = 'hs-val ' + (d.day_pnl >= 0 ? 'green' : 'red');
+
+      const totalEl = document.getElementById('hs-total');
+      totalEl.textContent = (d.total_pnl >= 0 ? '+' : '') + '₹' + d.total_pnl.toLocaleString('en-IN') + ' (' + d.total_pnl_pct + '%)';
+      totalEl.className = 'hs-val ' + (d.total_pnl >= 0 ? 'green' : 'red');
+
+      // Holdings table
       const tbody = document.getElementById('holdings-table');
       if (d.holdings.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="color:#888">No stocks yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="color:#888">No stocks yet</td></tr>';
       } else {
         tbody.innerHTML = d.holdings.map(h =>
-          `<tr><td><b>${h.symbol}</b></td><td>${h.qty}</td>
-           <td>₹${h.price}</td><td>₹${h.value.toLocaleString('en-IN')}</td></tr>`
+          `<tr>
+            <td><b>${h.symbol}</b></td>
+            <td>${h.qty}</td>
+            <td>₹${h.avg_buy_price}</td>
+            <td>₹${h.current_price}</td>
+            <td>₹${h.invested.toLocaleString('en-IN')}</td>
+            <td>₹${h.current_value.toLocaleString('en-IN')}</td>
+            <td class="${h.pnl >= 0 ? 'green' : 'red'}">
+              ${h.pnl >= 0 ? '+' : ''}₹${h.pnl.toLocaleString('en-IN')}
+            </td>
+            <td class="${h.pnl_pct >= 0 ? 'green' : 'red'}">${h.pnl_pct >= 0 ? '+' : ''}${h.pnl_pct}%</td>
+            <td class="${h.day_change_pct >= 0 ? 'green' : 'red'}">${h.day_change_pct >= 0 ? '+' : ''}${h.day_change_pct}%</td>
+          </tr>`
         ).join('');
       }
     }

@@ -35,38 +35,90 @@ def get_price(symbol):
         return round(float(data["Close"].iloc[-1]), 2)
     except:
         return None
+def get_price_and_prev(symbol):
+    """Get current price and previous day's close — needed for day's P&L."""
+    try:
+        ticker = yf.Ticker(symbol + ".NS")
+        hist = ticker.history(period="5d")
+        if hist.empty:
+            return None, None
+        current = round(float(hist["Close"].iloc[-1]), 2)
+        prev = round(float(hist["Close"].iloc[-2]), 2) if len(hist) > 1 else current
+        return current, prev
+    except:
+        return None, None
 
 def get_portfolio_value(username):
-    """Calculate total portfolio value for a user."""
     users = load_json("data/users.json")
     trades = load_json("data/trades.json")
     user = users.get(username, {})
+
     holdings = {}
-    
     for trade in trades.get(username, []):
         sym = trade["symbol"]
-        qty = trade["qty"] if trade["action"] == "buy" else -trade["qty"]
-        holdings[sym] = holdings.get(sym, 0) + qty
-    
+        if sym not in holdings:
+            holdings[sym] = {"qty": 0, "total_cost": 0}
+        if trade["action"] == "buy":
+            holdings[sym]["qty"] += trade["qty"]
+            holdings[sym]["total_cost"] += trade["total"]
+        else:
+            if holdings[sym]["qty"] > 0:
+                avg = holdings[sym]["total_cost"] / holdings[sym]["qty"]
+                holdings[sym]["qty"] -= trade["qty"]
+                holdings[sym]["total_cost"] -= avg * trade["qty"]
+
     portfolio_value = 0
+    total_invested = 0
+    day_pnl_total = 0
     holdings_detail = []
-    for sym, qty in holdings.items():
-        if qty > 0:
-            price = get_price(sym) or 0
-            value = qty * price
-            portfolio_value += value
+
+    for sym, data in holdings.items():
+        if data["qty"] > 0:
+            current, prev = get_price_and_prev(sym)
+            if current is None:
+                continue
+            qty = data["qty"]
+            invested = round(data["total_cost"], 2)
+            avg_buy_price = round(data["total_cost"] / qty, 2)
+            current_value = round(qty * current, 2)
+            pnl = round(current_value - invested, 2)
+            pnl_pct = round((pnl / invested) * 100, 2) if invested > 0 else 0
+            day_change = round((current - prev) * qty, 2)
+            day_change_pct = round(((current - prev) / prev) * 100, 2) if prev else 0
+
+            portfolio_value += current_value
+            total_invested += invested
+            day_pnl_total += day_change
+
             holdings_detail.append({
-                "symbol": sym, "qty": qty,
-                "price": price, "value": round(value, 2)
+                "symbol": sym,
+                "qty": qty,
+                "avg_buy_price": avg_buy_price,
+                "current_price": current,
+                "invested": invested,
+                "current_value": current_value,
+                "pnl": pnl,
+                "pnl_pct": pnl_pct,
+                "day_change": day_change,
+                "day_change_pct": day_change_pct
             })
-    
+
+    total_pnl = round(portfolio_value - total_invested, 2)
+    total_pnl_pct = round((total_pnl / total_invested) * 100, 2) if total_invested > 0 else 0
+    prev_day_value = portfolio_value - day_pnl_total
+    day_pnl_pct = round((day_pnl_total / prev_day_value) * 100, 2) if prev_day_value > 0 else 0
+
     return {
         "cash": round(user.get("balance", STARTING_BALANCE), 2),
         "portfolio_value": round(portfolio_value, 2),
         "total": round(user.get("balance", STARTING_BALANCE) + portfolio_value, 2),
+        "total_invested": round(total_invested, 2),
+        "total_pnl": total_pnl,
+        "total_pnl_pct": total_pnl_pct,
+        "day_pnl": round(day_pnl_total, 2),
+        "day_pnl_pct": day_pnl_pct,
         "holdings": holdings_detail
     }
-
 # ─── routes ───────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -248,6 +300,136 @@ If asked about a trade the user made, explain what was good/bad about the decisi
     )
     
     return jsonify({"reply": message.content[0].text})
+# ─── stock info helper ─────────────────────────────────────────────────────
+
+STOCK_NAMES = {
+    "RELIANCE": "Reliance Industries",
+    "TCS": "Tata Consultancy Services",
+    "INFY": "Infosys Ltd",
+    "HDFCBANK": "HDFC Bank",
+    "ICICIBANK": "ICICI Bank",
+    "SBIN": "State Bank of India",
+    "ITC": "ITC Limited",
+    "WIPRO": "Wipro Ltd",
+    "TATAMOTORS": "Tata Motors",
+    "BHARTIARTL": "Bharti Airtel"
+}
+
+STOCK_TAKES = {
+    "RELIANCE": "India's largest company by market cap, spanning oil, telecom (Jio), and retail. Considered relatively stable for beginners due to its size and diversification.",
+    "TCS": "India's largest IT services company. Earns most revenue from global clients in dollars. IT stocks are sensitive to the US economy and rupee-dollar movements.",
+    "INFY": "India's second largest IT company. Similar drivers to TCS — global demand for tech services and currency movements affect its performance.",
+    "HDFCBANK": "One of India's most trusted private banks, known for consistent growth. Banking stocks are sensitive to RBI interest rate decisions.",
+    "ICICIBANK": "A large private bank with strong digital banking presence. Like HDFC Bank, performance is linked to interest rates and loan growth.",
+    "SBIN": "India's largest public sector bank. Often more volatile than private banks but benefits from government backing and large market share.",
+    "ITC": "A diversified company spanning cigarettes, FMCG, hotels, and paper. Known for steady dividends — popular among conservative investors.",
+    "WIPRO": "A major IT services company, smaller than TCS and Infosys. Similar sector dynamics — global tech spending drives its growth.",
+    "TATAMOTORS": "Owns Jaguar Land Rover and is a major player in Indian commercial and electric vehicles. More volatile — linked to auto sector cycles.",
+    "BHARTIARTL": "India's second largest telecom operator. Telecom stocks are influenced by subscriber growth, tariffs, and competition with Jio."
+}
+
+def get_stock_stats(symbol):
+    """Get extended stats for a stock."""
+    try:
+        ticker = yf.Ticker(symbol + ".NS")
+        info = ticker.info
+        hist = ticker.history(period="6mo")
+        if hist.empty:
+            return None
+        return {
+            "symbol": symbol,
+            "name": STOCK_NAMES.get(symbol, info.get("longName", symbol)),
+            "current_price": round(float(hist["Close"].iloc[-1]), 2),
+            "prev_close": round(info.get("previousClose", 0) or 0, 2),
+            "open": round(info.get("open", 0) or 0, 2),
+            "day_high": round(info.get("dayHigh", 0) or 0, 2),
+            "day_low": round(info.get("dayLow", 0) or 0, 2),
+            "year_high": round(info.get("fiftyTwoWeekHigh", 0) or 0, 2),
+            "year_low": round(info.get("fiftyTwoWeekLow", 0) or 0, 2),
+            "pe_ratio": round(info.get("trailingPE", 0), 2) if info.get("trailingPE") else None,
+            "chart_data": [round(float(p), 2) for p in hist["Close"].tail(30).tolist()],
+            "chart_dates": [d.strftime("%d %b") for d in hist.index[-30:]],
+            "ai_take": STOCK_TAKES.get(symbol, "This stock is not in our quick-reference list yet, but you can research it on the company's investor relations page.")
+        }
+    except Exception as e:
+        print("Error fetching stock stats:", e)
+        return None
+
+# ─── watchlist routes ───────────────────────────────────────────────────────
+
+@app.route("/watchlist")
+def watchlist():
+    if "user" not in session:
+        return redirect("/")
+    return render_template("watchlist.html", username=session["user"])
+
+@app.route("/api/watchlist", methods=["GET"])
+def api_get_watchlist():
+    if "user" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    users = load_json("data/users.json")
+    user = users.get(session["user"], {})
+    symbols = user.get("watchlist", [])
+
+    result = []
+    for sym in symbols:
+        price = get_price(sym)
+        if price:
+            result.append({
+                "symbol": sym,
+                "name": STOCK_NAMES.get(sym, sym),
+                "price": price
+            })
+    return jsonify(result)
+
+@app.route("/api/watchlist/add", methods=["POST"])
+def api_add_watchlist():
+    if "user" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.json
+    symbol = data.get("symbol", "").upper().strip()
+
+    price = get_price(symbol)
+    if not price:
+        return jsonify({"error": f"Could not find stock {symbol}"})
+
+    users = load_json("data/users.json")
+    user = users[session["user"]]
+    if "watchlist" not in user:
+        user["watchlist"] = []
+    if symbol not in user["watchlist"]:
+        user["watchlist"].append(symbol)
+    save_json("data/users.json", users)
+    return jsonify({"success": True})
+
+@app.route("/api/watchlist/remove", methods=["POST"])
+def api_remove_watchlist():
+    if "user" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.json
+    symbol = data.get("symbol", "").upper().strip()
+
+    users = load_json("data/users.json")
+    user = users[session["user"]]
+    if "watchlist" in user and symbol in user["watchlist"]:
+        user["watchlist"].remove(symbol)
+    save_json("data/users.json", users)
+    return jsonify({"success": True})
+
+# ─── stock detail route ─────────────────────────────────────────────────────
+
+@app.route("/stock/<symbol>")
+def stock_detail(symbol):
+    if "user" not in session:
+        return redirect("/")
+    return render_template("stock.html", username=session["user"], symbol=symbol.upper())
+
+@app.route("/api/stock/<symbol>")
+def api_stock_detail(symbol):
+    stats = get_stock_stats(symbol.upper())
+    if not stats:
+        return jsonify({"error": "Could not fetch stock data"}), 404
+    return jsonify(stats)
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
