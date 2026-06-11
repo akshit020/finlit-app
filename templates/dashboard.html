@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — FinSaathi</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f0f4f8; color: #1a1a2e; }
+    nav { background: white; padding: 1rem 1.5rem; display: flex;
+          justify-content: space-between; align-items: center;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    nav h2 { color: #4f46e5; font-size: 1.2rem; }
+    nav div { display: flex; gap: 1rem; align-items: center; }
+    nav a { color: #666; text-decoration: none; font-size: 0.9rem; }
+    nav a:hover { color: #4f46e5; }
+    .username { font-weight: 600; color: #1a1a2e; font-size: 0.9rem; }
+    .container { max-width: 1000px; margin: 0 auto; padding: 1.5rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+    .card { background: white; border-radius: 12px; padding: 1.2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .metric-label { font-size: 0.8rem; color: #888; margin-bottom: 0.3rem; }
+    .metric-val { font-size: 1.6rem; font-weight: 700; color: #1a1a2e; }
+    .metric-sub { font-size: 0.8rem; color: #888; margin-top: 0.2rem; }
+    .green { color: #16a34a; } .red { color: #dc2626; }
+    .grid-2 { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 1rem; margin-bottom: 1.5rem; }
+    .card h3 { font-size: 1rem; margin-bottom: 1rem; color: #1a1a2e; }
+    input, select { width: 100%; padding: 0.6rem; border: 1.5px solid #e0e0e0;
+                    border-radius: 8px; font-size: 0.95rem; margin-bottom: 0.7rem; }
+    input:focus, select:focus { outline: none; border-color: #4f46e5; }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    .btn-buy { background: #16a34a; color: white; border: none; padding: 0.7rem;
+               border-radius: 8px; cursor: pointer; font-size: 0.95rem; }
+    .btn-sell { background: #dc2626; color: white; border: none; padding: 0.7rem;
+                border-radius: 8px; cursor: pointer; font-size: 0.95rem; }
+    .price-display { background: #f8f9ff; border-radius: 8px; padding: 0.8rem;
+                     margin-bottom: 0.7rem; font-size: 0.9rem; color: #4f46e5; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; padding: 0.5rem; border-bottom: 1.5px solid #f0f0f0;
+         font-size: 0.8rem; color: #888; }
+    td { padding: 0.6rem 0.5rem; border-bottom: 1px solid #f8f8f8; }
+    .ai-box { background: #f8f9ff; border: 1.5px solid #e0e0ff; border-radius: 10px;
+              padding: 1rem; }
+    .ai-reply { font-size: 0.9rem; color: #333; line-height: 1.6; min-height: 60px; }
+    .ai-input-row { display: flex; gap: 0.5rem; margin-top: 0.7rem; }
+    .ai-input-row input { margin: 0; flex: 1; }
+    .ai-input-row button { background: #4f46e5; color: white; border: none;
+                           padding: 0.6rem 1rem; border-radius: 8px; cursor: pointer;
+                           white-space: nowrap; }
+    .board-row { display: flex; justify-content: space-between; align-items: center;
+                 padding: 0.5rem 0; border-bottom: 1px solid #f0f0f0; font-size: 0.9rem; }
+    .rank { font-weight: 700; color: #4f46e5; width: 24px; }
+    .msg { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;
+           padding: 0.6rem; font-size: 0.85rem; color: #166534; margin-top: 0.5rem; }
+    .err { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
+           padding: 0.6rem; font-size: 0.85rem; color: #991b1b; margin-top: 0.5rem; }
+    @media(max-width:640px) { .grid-3,.grid-2 { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <nav>
+    <h2>FinSaathi</h2>
+    <div>
+      <span class="username">{{ username.title() }}</span>
+      <a href="/learn">Learn</a>
+      <a href="/logout">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <!-- Portfolio summary -->
+    <div class="grid-3">
+      <div class="card">
+        <div class="metric-label">Cash available</div>
+        <div class="metric-val" id="cash">—</div>
+        <div class="metric-sub">Virtual ₹</div>
+      </div>
+      <div class="card">
+        <div class="metric-label">Portfolio value</div>
+        <div class="metric-val" id="port-val">—</div>
+        <div class="metric-sub">Stocks held</div>
+      </div>
+      <div class="card">
+        <div class="metric-label">Total wealth</div>
+        <div class="metric-val" id="total">—</div>
+        <div class="metric-sub" id="gain-pct">vs ₹1,00,000 start</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Trade panel -->
+      <div class="card">
+        <h3>Trade stocks (NSE)</h3>
+        <input id="symbol" type="text" placeholder="Symbol e.g. RELIANCE, TCS, HDFC" 
+               oninput="this.value=this.value.toUpperCase()">
+        <div class="price-display" id="price-display">Enter a symbol to see live price</div>
+        <input id="qty" type="number" placeholder="Quantity (number of shares)" min="1">
+        <div class="btn-row">
+          <button class="btn-buy" onclick="trade('buy')">Buy</button>
+          <button class="btn-sell" onclick="trade('sell')">Sell</button>
+        </div>
+        <div id="trade-msg"></div>
+      </div>
+
+      <!-- Holdings -->
+      <div class="card">
+        <h3>Your holdings</h3>
+        <table>
+          <thead><tr><th>Stock</th><th>Qty</th><th>Price</th><th>Value</th></tr></thead>
+          <tbody id="holdings-table"><tr><td colspan="4" style="color:#888">No stocks yet</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Ask Claude -->
+      <div class="card">
+        <h3>Ask FinSaathi AI</h3>
+        <div class="ai-box">
+          <div class="ai-reply" id="ai-reply">
+            Hi! I'm FinSaathi. Ask me anything about investing — what is P/E ratio, 
+            why did a stock fall, what should a beginner invest in, etc.
+          </div>
+          <div class="ai-input-row">
+            <input id="ai-q" type="text" placeholder="Ask anything..." 
+                   onkeydown="if(event.key==='Enter') askClaude()">
+            <button onclick="askClaude()">Ask</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Leaderboard -->
+      <div class="card">
+        <h3>Family leaderboard</h3>
+        <div id="leaderboard">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let lastSymbol = '', lastPrice = 0;
+
+    async function loadPortfolio() {
+      const res = await fetch('/api/portfolio');
+      const d = await res.json();
+      document.getElementById('cash').textContent = '₹' + d.cash.toLocaleString('en-IN');
+      document.getElementById('port-val').textContent = '₹' + d.portfolio_value.toLocaleString('en-IN');
+      document.getElementById('total').textContent = '₹' + d.total.toLocaleString('en-IN');
+      
+      const gain = d.total - 100000;
+      const pct = ((gain / 100000) * 100).toFixed(2);
+      const el = document.getElementById('gain-pct');
+      el.textContent = (gain >= 0 ? '+' : '') + '₹' + gain.toLocaleString('en-IN') + ' (' + pct + '%)';
+      el.className = 'metric-sub ' + (gain >= 0 ? 'green' : 'red');
+      
+      const tbody = document.getElementById('holdings-table');
+      if (d.holdings.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color:#888">No stocks yet</td></tr>';
+      } else {
+        tbody.innerHTML = d.holdings.map(h =>
+          `<tr><td><b>${h.symbol}</b></td><td>${h.qty}</td>
+           <td>₹${h.price}</td><td>₹${h.value.toLocaleString('en-IN')}</td></tr>`
+        ).join('');
+      }
+    }
+
+    let priceTimer;
+    document.getElementById('symbol').addEventListener('input', () => {
+      clearTimeout(priceTimer);
+      const sym = document.getElementById('symbol').value;
+      if (sym.length >= 2) priceTimer = setTimeout(() => fetchPrice(sym), 600);
+    });
+
+    async function fetchPrice(sym) {
+      document.getElementById('price-display').textContent = 'Fetching price...';
+      const res = await fetch('/api/price/' + sym);
+      if (res.ok) {
+        const d = await res.json();
+        lastSymbol = sym; lastPrice = d.price;
+        document.getElementById('price-display').textContent =
+          sym + ' — ₹' + d.price.toLocaleString('en-IN') + ' per share';
+      } else {
+        document.getElementById('price-display').textContent = 'Symbol not found. Try RELIANCE, TCS, INFY';
+      }
+    }
+
+    async function trade(action) {
+      const symbol = document.getElementById('symbol').value;
+      const qty = parseInt(document.getElementById('qty').value);
+      if (!symbol || !qty) { showMsg('Enter symbol and quantity', false); return; }
+      
+      const res = await fetch('/api/trade', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({symbol, action, qty})
+      });
+      const d = await res.json();
+      showMsg(d.message || d.error, !!d.success);
+      
+      if (d.success) {
+        loadPortfolio();
+        loadLeaderboard();
+        // Auto-ask Claude to explain the trade
+        const tradeCtx = `User just ${action === 'buy' ? 'bought' : 'sold'} ${qty} shares of ${symbol} at ₹${lastPrice}`;
+        document.getElementById('ai-q').value = `Why might someone ${action} ${symbol}?`;
+        askClaude(tradeCtx);
+      }
+    }
+
+    function showMsg(text, isSuccess) {
+      const el = document.getElementById('trade-msg');
+      el.className = isSuccess ? 'msg' : 'err';
+      el.textContent = text;
+      el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 4000);
+    }
+
+    async function askClaude(context = '') {
+      const q = document.getElementById('ai-q').value;
+      if (!q) return;
+      const replyEl = document.getElementById('ai-reply');
+      replyEl.textContent = 'FinSaathi is thinking...';
+      
+      const res = await fetch('/api/ask-claude', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question: q, context})
+      });
+      const d = await res.json();
+      replyEl.textContent = d.reply || d.error;
+      document.getElementById('ai-q').value = '';
+    }
+
+    async function loadLeaderboard() {
+      const res = await fetch('/api/leaderboard');
+      const board = await res.json();
+      const el = document.getElementById('leaderboard');
+      if (board.length === 0) { el.innerHTML = '<div style="color:#888">No players yet</div>'; return; }
+      el.innerHTML = board.map((p, i) =>
+        `<div class="board-row">
+           <span class="rank">${i + 1}</span>
+           <span style="flex:1">${p.name}</span>
+           <span>₹${p.total.toLocaleString('en-IN')}</span>
+           <span class="${p.gain >= 0 ? 'green' : 'red'}" style="margin-left:0.5rem;font-size:0.8rem">
+             ${p.gain >= 0 ? '+' : ''}${p.gain_pct}%
+           </span>
+         </div>`
+      ).join('');
+    }
+
+    loadPortfolio();
+    loadLeaderboard();
+  </script>
+</body>
+</html>
