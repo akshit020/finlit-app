@@ -2,7 +2,8 @@ from flask import Flask, render_template, request, jsonify, session, redirect
 import yfinance as yf
 import json
 import os
-from datetime import datetime
+import math
+from datetime import datetime, timedelta
 import anthropic
 from dotenv import load_dotenv
 
@@ -10,10 +11,9 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = "finlit-family-secret-2024"
+
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 STARTING_BALANCE = 100000
-
-# ─── helpers ──────────────────────────────────────────────────────────────────
 
 def load_json(path):
     if not os.path.exists(path) or os.path.getsize(path) == 0:
@@ -26,7 +26,6 @@ def save_json(path, data):
         json.dump(data, f, indent=2)
 
 def get_price(symbol):
-    """Fetch live price from Yahoo Finance. NSE stocks need .NS suffix."""
     try:
         ticker = yf.Ticker(symbol + ".NS")
         data = ticker.history(period="1d")
@@ -35,8 +34,8 @@ def get_price(symbol):
         return round(float(data["Close"].iloc[-1]), 2)
     except:
         return None
+
 def get_price_and_prev(symbol):
-    """Get current price and previous day's close — needed for day's P&L."""
     try:
         ticker = yf.Ticker(symbol + ".NS")
         hist = ticker.history(period="5d")
@@ -47,6 +46,29 @@ def get_price_and_prev(symbol):
         return current, prev
     except:
         return None, None
+
+def get_ist_time():
+    return datetime.utcnow() + timedelta(hours=5, minutes=30)
+
+def is_market_open():
+    now = get_ist_time()
+    if now.weekday() >= 5:
+        return False
+    market_open = now.replace(hour=9, minute=0, second=0, microsecond=0)
+    market_close = now.replace(hour=15, minute=30, second=0, microsecond=0)
+    return market_open <= now <= market_close
+
+@app.route("/api/market-status")
+def api_market_status():
+    open_now = is_market_open()
+    now = get_ist_time()
+    if open_now:
+        msg = "Market is open — orders execute instantly"
+    elif now.weekday() >= 5:
+        msg = "Market closed (weekend) — orders will be placed as AMO and execute on next trading day"
+    else:
+        msg = "Market closed — orders will be placed as AMO (After Market Order) and execute when market opens at 9:00 AM"
+    return jsonify({"open": open_now, "message": msg, "ist_time": now.strftime("%H:%M, %a")})
 
 def get_portfolio_value(username):
     users = load_json("data/users.json")
@@ -75,7 +97,9 @@ def get_portfolio_value(username):
     for sym, data in holdings.items():
         if data["qty"] > 0:
             current, prev = get_price_and_prev(sym)
-            if current is None:
+            if current is None or prev is None:
+                continue
+            if math.isnan(current) or math.isnan(prev):
                 continue
             qty = data["qty"]
             invested = round(data["total_cost"], 2)
@@ -119,7 +143,151 @@ def get_portfolio_value(username):
         "day_pnl_pct": day_pnl_pct,
         "holdings": holdings_detail
     }
-# ─── routes ───────────────────────────────────────────────────────────────────
+
+STOCK_NAMES = {
+    "RELIANCE": "Reliance Industries",
+    "TCS": "Tata Consultancy Services",
+    "INFY": "Infosys Ltd",
+    "HDFCBANK": "HDFC Bank",
+    "ICICIBANK": "ICICI Bank",
+    "SBIN": "State Bank of India",
+    "ITC": "ITC Limited",
+    "WIPRO": "Wipro Ltd",
+    "TATAMOTORS": "Tata Motors",
+    "BHARTIARTL": "Bharti Airtel"
+}
+
+STOCK_TAKES = {
+    "RELIANCE": "India's largest company by market cap, spanning oil, telecom (Jio), and retail. Considered relatively stable for beginners due to its size and diversification.",
+    "TCS": "India's largest IT services company. Earns most revenue from global clients in dollars. IT stocks are sensitive to the US economy and rupee-dollar movements.",
+    "INFY": "India's second largest IT company. Similar drivers to TCS — global demand for tech services and currency movements affect its performance.",
+    "HDFCBANK": "One of India's most trusted private banks, known for consistent growth. Banking stocks are sensitive to RBI interest rate decisions.",
+    "ICICIBANK": "A large private bank with strong digital banking presence. Like HDFC Bank, performance is linked to interest rates and loan growth.",
+    "SBIN": "India's largest public sector bank. Often more volatile than private banks but benefits from government backing and large market share.",
+    "ITC": "A diversified company spanning cigarettes, FMCG, hotels, and paper. Known for steady dividends — popular among conservative investors.",
+    "WIPRO": "A major IT services company, smaller than TCS and Infosys. Similar sector dynamics — global tech spending drives its growth.",
+    "TATAMOTORS": "Owns Jaguar Land Rover and is a major player in Indian commercial and electric vehicles. More volatile — linked to auto sector cycles.",
+    "BHARTIARTL": "India's second largest telecom operator. Telecom stocks are influenced by subscriber growth, tariffs, and competition with Jio."
+}
+
+def get_stock_stats(symbol):
+    try:
+        ticker = yf.Ticker(symbol + ".NS")
+        info = ticker.info
+        hist = ticker.history(period="6mo")
+        if hist.empty:
+            return None
+        return {
+            "symbol": symbol,
+            "name": STOCK_NAMES.get(symbol, info.get("longName", symbol)),
+            "current_price": round(float(hist["Close"].iloc[-1]), 2),
+            "prev_close": round(info.get("previousClose", 0) or 0, 2),
+            "open": round(info.get("open", 0) or 0, 2),
+            "day_high": round(info.get("dayHigh", 0) or 0, 2),
+            "day_low": round(info.get("dayLow", 0) or 0, 2),
+            "year_high": round(info.get("fiftyTwoWeekHigh", 0) or 0, 2),
+            "year_low": round(info.get("fiftyTwoWeekLow", 0) or 0, 2),
+            "pe_ratio": round(info.get("trailingPE", 0), 2) if info.get("trailingPE") else None,
+            "chart_data": [round(float(p), 2) for p in hist["Close"].tail(30).tolist()],
+            "chart_dates": [d.strftime("%d %b") for d in hist.index[-30:]],
+            "ai_take": STOCK_TAKES.get(symbol, "This stock is not in our quick-reference list yet, but you can research it on the company's investor relations page.")
+        }
+    except Exception as e:
+        print("Error fetching stock stats:", e)
+        return None
+
+def execute_trade(username, symbol, action, qty, price):
+    users = load_json("data/users.json")
+    trades = load_json("data/trades.json")
+    user = users[username]
+    total_cost = price * qty
+
+    if action == "buy":
+        if user["balance"] < total_cost:
+            return {"error": f"Insufficient funds. Need ₹{total_cost:,.2f}"}
+        user["balance"] -= total_cost
+    elif action == "sell":
+        holdings = {}
+        for t in trades.get(username, []):
+            sym = t["symbol"]
+            q = t["qty"] if t["action"] == "buy" else -t["qty"]
+            holdings[sym] = holdings.get(sym, 0) + q
+        if holdings.get(symbol, 0) < qty:
+            return {"error": f"You don't hold {qty} shares of {symbol}"}
+        user["balance"] += total_cost
+    else:
+        return {"error": "Action must be buy or sell"}
+
+    trades[username].append({
+        "symbol": symbol,
+        "action": action,
+        "qty": qty,
+        "price": price,
+        "total": total_cost,
+        "time": datetime.now().isoformat()
+    })
+
+    save_json("data/users.json", users)
+    save_json("data/trades.json", trades)
+
+    return {
+        "success": True,
+        "message": f"{'Bought' if action == 'buy' else 'Sold'} {qty} shares of {symbol} at ₹{price}",
+        "new_balance": round(user["balance"], 2)
+    }
+
+def load_pending_orders():
+    return load_json("data/pending_orders.json")
+
+def save_pending_orders(data):
+    save_json("data/pending_orders.json", data)
+
+def check_pending_orders(username):
+    pending = load_pending_orders()
+    user_orders = pending.get(username, [])
+    if not user_orders:
+        return []
+
+    executed = []
+    market_open_now = is_market_open()
+
+    for order in user_orders:
+        if order["status"] != "pending":
+            continue
+
+        triggered = False
+        exec_price = None
+
+        if order["order_type"] == "amo":
+            if market_open_now:
+                exec_price = get_price(order["symbol"])
+                if exec_price is not None:
+                    triggered = True
+        else:
+            current_price = get_price(order["symbol"])
+            if current_price is None:
+                continue
+            exec_price = current_price
+            if order["order_type"] == "limit":
+                if order["action"] == "buy" and current_price <= order["trigger_price"]:
+                    triggered = True
+                elif order["action"] == "sell" and current_price >= order["trigger_price"]:
+                    triggered = True
+            elif order["order_type"] == "stoploss":
+                if order["action"] == "sell" and current_price <= order["trigger_price"]:
+                    triggered = True
+
+        if triggered and exec_price is not None:
+            result = execute_trade(username, order["symbol"], order["action"], order["qty"], exec_price)
+            if result.get("success"):
+                order["status"] = "executed"
+                order["executed_price"] = exec_price
+                order["executed_at"] = datetime.now().isoformat()
+                executed.append(order)
+
+    pending[username] = user_orders
+    save_pending_orders(pending)
+    return executed
 
 @app.route("/")
 def index():
@@ -133,7 +301,7 @@ def login():
     users = load_json("data/users.json")
     name = data.get("name", "").strip().lower()
     pin = data.get("pin", "").strip()
-    
+
     if name in users and users[name]["pin"] == pin:
         session["user"] = name
         return jsonify({"success": True})
@@ -145,23 +313,24 @@ def register():
     users = load_json("data/users.json")
     name = data.get("name", "").strip().lower()
     pin = data.get("pin", "").strip()
-    
+
     if name in users:
         return jsonify({"success": False, "error": "Name already taken"})
     if len(pin) < 4:
         return jsonify({"success": False, "error": "PIN must be 4+ digits"})
-    
+
     users[name] = {
         "pin": pin,
         "balance": STARTING_BALANCE,
-        "joined": datetime.now().isoformat()
+        "joined": datetime.now().isoformat(),
+        "watchlist": []
     }
     save_json("data/users.json", users)
-    
+
     trades = load_json("data/trades.json")
     trades[name] = []
     save_json("data/trades.json", trades)
-    
+
     session["user"] = name
     return jsonify({"success": True})
 
@@ -199,59 +368,55 @@ def api_price(symbol):
 def api_trade():
     if "user" not in session:
         return jsonify({"error": "Not logged in"}), 401
-    
+
     data = request.json
     username = session["user"]
     symbol = data.get("symbol", "").upper()
-    action = data.get("action")  # "buy" or "sell"
+    action = data.get("action")
     qty = int(data.get("qty", 0))
-    
+
     if qty <= 0:
         return jsonify({"error": "Quantity must be positive"})
-    
+
     price = get_price(symbol)
     if not price:
         return jsonify({"error": f"Could not get price for {symbol}"})
-    
-    users = load_json("data/users.json")
-    trades = load_json("data/trades.json")
-    user = users[username]
-    total_cost = price * qty
-    
-    if action == "buy":
-        if user["balance"] < total_cost:
-            return jsonify({"error": f"Insufficient funds. Need ₹{total_cost:,.2f}"})
-        user["balance"] -= total_cost
-    elif action == "sell":
-        # check if user holds enough
-        holdings = {}
-        for t in trades.get(username, []):
-            sym = t["symbol"]
-            q = t["qty"] if t["action"] == "buy" else -t["qty"]
-            holdings[sym] = holdings.get(sym, 0) + q
-        if holdings.get(symbol, 0) < qty:
-            return jsonify({"error": f"You don't hold {qty} shares of {symbol}"})
-        user["balance"] += total_cost
-    else:
+
+    if action not in ["buy", "sell"]:
         return jsonify({"error": "Action must be buy or sell"})
-    
-    trades[username].append({
-        "symbol": symbol,
-        "action": action,
-        "qty": qty,
-        "price": price,
-        "total": total_cost,
-        "time": datetime.now().isoformat()
-    })
-    
-    save_json("data/users.json", users)
-    save_json("data/trades.json", trades)
-    
-    return jsonify({
-        "success": True,
-        "message": f"{'Bought' if action == 'buy' else 'Sold'} {qty} shares of {symbol} at ₹{price}",
-        "new_balance": round(user["balance"], 2)
-    })
+
+    if not is_market_open():
+        if action == "sell":
+            portfolio = get_portfolio_value(username)
+            held = next((h["qty"] for h in portfolio["holdings"] if h["symbol"] == symbol), 0)
+            if held < qty:
+                return jsonify({"error": f"You only hold {held} shares of {symbol}"})
+
+        pending = load_pending_orders()
+        if username not in pending:
+            pending[username] = []
+
+        order_id = f"{username}_{int(datetime.now().timestamp())}"
+        pending[username].append({
+            "id": order_id,
+            "symbol": symbol,
+            "action": action,
+            "order_type": "amo",
+            "trigger_price": price,
+            "qty": qty,
+            "status": "pending",
+            "created_at": datetime.now().isoformat()
+        })
+        save_pending_orders(pending)
+
+        return jsonify({
+            "success": True,
+            "amo": True,
+            "message": f"Market is closed. Your {action.upper()} order for {qty} {symbol} has been placed as an After Market Order (AMO) and will execute when the market opens (Mon-Fri, 9:00 AM IST)."
+        })
+
+    result = execute_trade(username, symbol, action, qty, price)
+    return jsonify(result)
 
 @app.route("/api/leaderboard")
 def api_leaderboard():
@@ -270,92 +435,65 @@ def api_leaderboard():
 
 @app.route("/api/ask-claude", methods=["POST"])
 def ask_claude():
-    """Claude explains stock concepts, debriefs trades, answers questions."""
     if "user" not in session:
         return jsonify({"error": "Not logged in"}), 401
-    
+
     data = request.json
-    question = data.get("question", "")
-    context = data.get("context", "")  # optional trade context
-    username = session["user"]
-    
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    
-    system_prompt = """You are FinSaathi, a friendly Indian financial literacy tutor.
-You are helping Indian families learn about investing in a safe, virtual environment.
-Keep responses short (3-5 sentences max), encouraging, and use simple language.
-Use Indian context (NSE stocks, ₹ currency, Indian companies like Reliance, TCS, HDFC).
-Never say 'buy this stock' as advice — always frame as education.
-If asked about a trade the user made, explain what was good/bad about the decision educationally."""
-    
-    user_message = question
-    if context:
-        user_message = f"Context: {context}\n\nQuestion: {question}"
-    
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",  # cheapest model, perfect for this
-        max_tokens=300,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}]
-    )
-    
-    return jsonify({"reply": message.content[0].text})
-# ─── stock info helper ─────────────────────────────────────────────────────
+    question = data.get("question", "").lower()
 
-STOCK_NAMES = {
-    "RELIANCE": "Reliance Industries",
-    "TCS": "Tata Consultancy Services",
-    "INFY": "Infosys Ltd",
-    "HDFCBANK": "HDFC Bank",
-    "ICICIBANK": "ICICI Bank",
-    "SBIN": "State Bank of India",
-    "ITC": "ITC Limited",
-    "WIPRO": "Wipro Ltd",
-    "TATAMOTORS": "Tata Motors",
-    "BHARTIARTL": "Bharti Airtel"
-}
+    responses = {
+        "pe ratio": "P/E ratio (Price to Earnings) tells you how much investors are paying for every rupee of a company's profit. A lower P/E can mean a stock is cheaper. Nifty 50 average P/E is around 20-22.",
+        "what is": "Great question! Investing means putting your money to work so it grows over time. In the stock market, you buy a small piece of a company and benefit when that company grows.",
+        "reliance": "Reliance Industries is India's largest company by market cap. It operates in oil, telecom (Jio), and retail. It is part of Nifty 50 and considered a relatively stable large-cap stock.",
+        "tcs": "TCS (Tata Consultancy Services) is India's largest IT company. It earns most revenue from global clients. IT stocks tend to be affected by the US economy and rupee-dollar exchange rate.",
+        "hdfc": "HDFC Bank is one of India's most trusted private sector banks. It is known for consistent growth and strong management. Banking stocks are sensitive to interest rate changes by RBI.",
+        "nifty": "Nifty 50 is an index of India's top 50 companies listed on NSE. When people say 'the market is up', they usually mean Nifty went up. It is a good benchmark for your portfolio performance.",
+        "sensex": "Sensex is BSE's index of top 30 Indian companies. It is older than Nifty and often moves in the same direction. Both are good indicators of overall market health.",
+        "diversif": "Diversification means not putting all your money in one stock or sector. If you hold 10 different stocks across 5 sectors, one bad stock won't ruin your portfolio.",
+        "stop loss": "A stop-loss is an automatic sell order triggered when a stock falls to a certain price. For example, buy at 100, set stop-loss at 90. This limits your maximum loss to 10 percent.",
+        "limit order": "A limit order lets you set the exact price at which you want to buy or sell. Example, if Infosys is at 1500 but you want to buy only if it drops to 1400, you place a limit order at 1400.",
+        "dividend": "A dividend is when a company shares its profits with shareholders. If you hold 100 shares and the company declares a 5 rupee dividend per share, you receive 500 rupees just for holding the stock.",
+        "market cap": "Market cap equals share price multiplied by total number of shares. It tells you the total value of a company. Large-cap stocks above 20,000 crore are generally more stable than small-cap stocks.",
+        "ipo": "IPO, or Initial Public Offering, is when a company lists on the stock exchange for the first time. Retail investors can apply for shares at the issue price before trading begins.",
+        "mutual fund": "A mutual fund pools money from many investors and a professional fund manager invests it. It is a good option for beginners who don't want to pick individual stocks.",
+        "sip": "SIP, or Systematic Investment Plan, means investing a fixed amount every month in a mutual fund. Even 500 rupees a month compounded over 20 years can create significant wealth.",
+        "bull": "A bull market means stock prices are rising and investor confidence is high. India had a strong bull run from 2020 to 2024 post-COVID recovery.",
+        "bear": "A bear market means stock prices are falling, usually by 20 percent or more from recent highs. Bear markets are temporary, every bear market in history has eventually recovered.",
+        "inflation": "Inflation means the purchasing power of money reduces over time. If inflation is 6 percent and your savings account gives 4 percent, you are actually losing money in real terms. Investing helps beat inflation.",
+        "rbi": "RBI, the Reserve Bank of India, controls interest rates and money supply. When RBI raises rates, borrowing becomes expensive and stock markets often fall. When RBI cuts rates, markets tend to rise.",
+        "sebi": "SEBI, the Securities and Exchange Board of India, is the regulator of Indian stock markets. It protects investors and ensures fair trading. All brokers must be registered with SEBI.",
+        "amo": "AMO stands for After Market Order. If you place a trade outside market hours (Mon-Fri 9:00 AM to 3:30 PM IST), it gets queued and automatically executes when the market opens next.",
+        "market hours": "Indian stock markets (NSE and BSE) are open Monday to Friday, 9:00 AM to 3:30 PM IST. They are closed on weekends and public holidays."
+    }
 
-STOCK_TAKES = {
-    "RELIANCE": "India's largest company by market cap, spanning oil, telecom (Jio), and retail. Considered relatively stable for beginners due to its size and diversification.",
-    "TCS": "India's largest IT services company. Earns most revenue from global clients in dollars. IT stocks are sensitive to the US economy and rupee-dollar movements.",
-    "INFY": "India's second largest IT company. Similar drivers to TCS — global demand for tech services and currency movements affect its performance.",
-    "HDFCBANK": "One of India's most trusted private banks, known for consistent growth. Banking stocks are sensitive to RBI interest rate decisions.",
-    "ICICIBANK": "A large private bank with strong digital banking presence. Like HDFC Bank, performance is linked to interest rates and loan growth.",
-    "SBIN": "India's largest public sector bank. Often more volatile than private banks but benefits from government backing and large market share.",
-    "ITC": "A diversified company spanning cigarettes, FMCG, hotels, and paper. Known for steady dividends — popular among conservative investors.",
-    "WIPRO": "A major IT services company, smaller than TCS and Infosys. Similar sector dynamics — global tech spending drives its growth.",
-    "TATAMOTORS": "Owns Jaguar Land Rover and is a major player in Indian commercial and electric vehicles. More volatile — linked to auto sector cycles.",
-    "BHARTIARTL": "India's second largest telecom operator. Telecom stocks are influenced by subscriber growth, tariffs, and competition with Jio."
-}
+    reply = None
+    for keyword, response in responses.items():
+        if keyword in question:
+            reply = response
+            break
 
-def get_stock_stats(symbol):
-    """Get extended stats for a stock."""
-    try:
-        ticker = yf.Ticker(symbol + ".NS")
-        info = ticker.info
-        hist = ticker.history(period="6mo")
-        if hist.empty:
-            return None
-        return {
-            "symbol": symbol,
-            "name": STOCK_NAMES.get(symbol, info.get("longName", symbol)),
-            "current_price": round(float(hist["Close"].iloc[-1]), 2),
-            "prev_close": round(info.get("previousClose", 0) or 0, 2),
-            "open": round(info.get("open", 0) or 0, 2),
-            "day_high": round(info.get("dayHigh", 0) or 0, 2),
-            "day_low": round(info.get("dayLow", 0) or 0, 2),
-            "year_high": round(info.get("fiftyTwoWeekHigh", 0) or 0, 2),
-            "year_low": round(info.get("fiftyTwoWeekLow", 0) or 0, 2),
-            "pe_ratio": round(info.get("trailingPE", 0), 2) if info.get("trailingPE") else None,
-            "chart_data": [round(float(p), 2) for p in hist["Close"].tail(30).tolist()],
-            "chart_dates": [d.strftime("%d %b") for d in hist.index[-30:]],
-            "ai_take": STOCK_TAKES.get(symbol, "This stock is not in our quick-reference list yet, but you can research it on the company's investor relations page.")
-        }
-    except Exception as e:
-        print("Error fetching stock stats:", e)
-        return None
+    if not reply:
+        reply = ("Good question! Here are some topics I can explain right now: "
+                 "PE ratio, diversification, stop-loss, limit order, dividend, "
+                 "market cap, IPO, mutual fund, SIP, bull market, bear market, "
+                 "inflation, RBI, SEBI, Nifty, Sensex, Reliance, TCS, HDFC, AMO, market hours. "
+                 "Type any of these words to learn more!")
 
-# ─── watchlist routes ───────────────────────────────────────────────────────
+    return jsonify({"reply": reply})
+
+@app.route("/orders")
+def orders():
+    if "user" not in session:
+        return redirect("/")
+    return render_template("orders.html", username=session["user"])
+
+@app.route("/api/orders")
+def api_orders():
+    if "user" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    trades = load_json("data/trades.json")
+    user_trades = trades.get(session["user"], [])
+    return jsonify(list(reversed(user_trades)))
 
 @app.route("/watchlist")
 def watchlist():
@@ -373,13 +511,28 @@ def api_get_watchlist():
 
     result = []
     for sym in symbols:
-        price = get_price(sym)
-        if price:
-            result.append({
-                "symbol": sym,
-                "name": STOCK_NAMES.get(sym, sym),
-                "price": price
-            })
+        current, prev = get_price_and_prev(sym)
+
+        if current is None or math.isnan(current):
+            current = get_price(sym)
+
+        if current is None or math.isnan(current):
+            continue
+
+        if prev is None or math.isnan(prev) or prev == 0:
+            change_pct = 0
+            change_val = 0
+        else:
+            change_pct = round(((current - prev) / prev) * 100, 2)
+            change_val = round(current - prev, 2)
+
+        result.append({
+            "symbol": sym,
+            "name": STOCK_NAMES.get(sym, sym),
+            "price": round(current, 2),
+            "change_pct": change_pct,
+            "change_val": change_val
+        })
     return jsonify(result)
 
 @app.route("/api/watchlist/add", methods=["POST"])
@@ -416,8 +569,6 @@ def api_remove_watchlist():
     save_json("data/users.json", users)
     return jsonify({"success": True})
 
-# ─── stock detail route ─────────────────────────────────────────────────────
-
 @app.route("/stock/<symbol>")
 def stock_detail(symbol):
     if "user" not in session:
@@ -430,6 +581,148 @@ def api_stock_detail(symbol):
     if not stats:
         return jsonify({"error": "Could not fetch stock data"}), 404
     return jsonify(stats)
+
+@app.route("/api/place-order", methods=["POST"])
+def api_place_order():
+    if "user" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    data = request.json
+    username = session["user"]
+    symbol = data.get("symbol", "").upper()
+    action = data.get("action")
+    order_type = data.get("order_type")
+    trigger_price = float(data.get("trigger_price", 0))
+    qty = int(data.get("qty", 0))
+
+    if qty <= 0 or trigger_price <= 0:
+        return jsonify({"error": "Enter valid quantity and trigger price"})
+
+    if order_type not in ["limit", "stoploss"]:
+        return jsonify({"error": "Invalid order type"})
+
+    if order_type == "stoploss" and action != "sell":
+        return jsonify({"error": "Stop-loss orders are only for selling"})
+
+    if action == "sell":
+        portfolio = get_portfolio_value(username)
+        held = next((h["qty"] for h in portfolio["holdings"] if h["symbol"] == symbol), 0)
+        if held < qty:
+            return jsonify({"error": f"You only hold {held} shares of {symbol}"})
+
+    pending = load_pending_orders()
+    if username not in pending:
+        pending[username] = []
+
+    order_id = f"{username}_{int(datetime.now().timestamp())}"
+    pending[username].append({
+        "id": order_id,
+        "symbol": symbol,
+        "action": action,
+        "order_type": order_type,
+        "trigger_price": trigger_price,
+        "qty": qty,
+        "status": "pending",
+        "created_at": datetime.now().isoformat()
+    })
+    save_pending_orders(pending)
+
+    label = "Limit" if order_type == "limit" else "Stop-loss"
+    return jsonify({"success": True, "message": f"{label} order placed: {action.upper()} {qty} {symbol} @ Rs {trigger_price}"})
+
+@app.route("/api/pending-orders")
+def api_pending_orders():
+    if "user" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    username = session["user"]
+    executed = check_pending_orders(username)
+
+    pending = load_pending_orders()
+    user_orders = pending.get(username, [])
+    pending_list = [o for o in user_orders if o["status"] == "pending"]
+
+    for o in pending_list:
+        o["current_price"] = get_price(o["symbol"])
+
+    return jsonify({"pending": pending_list, "executed_now": executed})
+
+@app.route("/api/cancel-order", methods=["POST"])
+def api_cancel_order():
+    if "user" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    data = request.json
+    order_id = data.get("id")
+    username = session["user"]
+
+    pending = load_pending_orders()
+    user_orders = pending.get(username, [])
+    pending[username] = [o for o in user_orders if o["id"] != order_id]
+    save_pending_orders(pending)
+
+    return jsonify({"success": True})
+
+@app.route("/positions")
+def positions():
+    if "user" not in session:
+        return redirect("/")
+    return render_template("positions.html", username=session["user"])
+
+@app.route("/api/positions")
+def api_positions():
+    if "user" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    username = session["user"]
+    trades = load_json("data/trades.json")
+    user_trades = trades.get(username, [])
+
+    today = datetime.now().date()
+    today_trades = [t for t in user_trades if datetime.fromisoformat(t["time"]).date() == today]
+
+    positions_data = {}
+    for t in today_trades:
+        sym = t["symbol"]
+        if sym not in positions_data:
+            positions_data[sym] = {"buy_qty": 0, "buy_value": 0, "sell_qty": 0, "sell_value": 0}
+        if t["action"] == "buy":
+            positions_data[sym]["buy_qty"] += t["qty"]
+            positions_data[sym]["buy_value"] += t["total"]
+        else:
+            positions_data[sym]["sell_qty"] += t["qty"]
+            positions_data[sym]["sell_value"] += t["total"]
+
+    result = []
+    for sym, p in positions_data.items():
+        net_qty = p["buy_qty"] - p["sell_qty"]
+        current_price = get_price(sym) or 0
+
+        realized_pnl = 0
+        if p["sell_qty"] > 0 and p["buy_qty"] > 0:
+            avg_buy = p["buy_value"] / p["buy_qty"]
+            realized_pnl = round(p["sell_value"] - (avg_buy * p["sell_qty"]), 2)
+
+        unrealized_pnl = 0
+        if net_qty > 0:
+            avg_buy = p["buy_value"] / p["buy_qty"]
+            unrealized_pnl = round((current_price - avg_buy) * net_qty, 2)
+        elif net_qty < 0:
+            avg_sell = p["sell_value"] / p["sell_qty"]
+            unrealized_pnl = round((avg_sell - current_price) * abs(net_qty), 2)
+
+        result.append({
+            "symbol": sym,
+            "net_qty": net_qty,
+            "buy_qty": p["buy_qty"],
+            "sell_qty": p["sell_qty"],
+            "current_price": current_price,
+            "realized_pnl": realized_pnl,
+            "unrealized_pnl": unrealized_pnl,
+            "total_pnl": round(realized_pnl + unrealized_pnl, 2)
+        })
+
+    return jsonify(result)
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

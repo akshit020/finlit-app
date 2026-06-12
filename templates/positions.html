@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Positions — FinSaathi</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f0f4f8; color: #1a1a2e; }
+    nav { background: white; padding: 1rem 1.5rem; display: flex;
+          justify-content: space-between; align-items: center;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    nav h2 { color: #4f46e5; font-size: 1.2rem; }
+    nav div { display: flex; gap: 1rem; }
+    nav a { color: #666; text-decoration: none; font-size: 0.9rem; }
+    nav a:hover { color: #4f46e5; }
+    .container { max-width: 800px; margin: 0 auto; padding: 1.5rem; }
+    h3 { font-size: 1.1rem; margin-bottom: 0.3rem; }
+    .sub { font-size: 0.85rem; color: #888; margin-bottom: 1rem; }
+    .card { background: white; border-radius: 12px; padding: 1.2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; padding: 0.6rem 0.8rem; border-bottom: 2px solid #f0f0f0;
+         font-size: 0.8rem; color: #888; }
+    td { padding: 0.7rem 0.8rem; border-bottom: 1px solid #f8f8f8; }
+    .green { color: #16a34a; font-weight: 600; } .red { color: #dc2626; font-weight: 600; }
+    .empty { text-align: center; color: #888; padding: 2rem; }
+  </style>
+</head>
+<body>
+  <nav>
+    <h2>FinSaathi</h2>
+    <div>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/watchlist">Watchlist</a>
+      <a href="/positions">Positions</a>
+      <a href="/orders">Orders</a>
+      <a href="/learn">Learn</a>
+      <a href="/logout">Logout</a>
+    </div>
+  </nav>
+  <div class="container">
+    <h3>Positions</h3>
+    <p class="sub">Today's trading activity — resets every day</p>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Stock</th><th>Net qty</th><th>LTP</th>
+            <th>Realized P&L</th><th>Unrealized P&L</th><th>Total P&L</th>
+          </tr>
+        </thead>
+        <tbody id="positions-body">
+          <tr><td colspan="6" class="empty">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <script>
+    async function loadPositions() {
+      const res = await fetch('/api/positions');
+      const positions = await res.json();
+      const body = document.getElementById('positions-body');
+      if (!positions.length) {
+        body.innerHTML = '<tr><td colspan="6" class="empty">No trades today yet — make a trade to see it here</td></tr>';
+        return;
+      }
+      body.innerHTML = positions.map(p => `
+        <tr>
+          <td><b>${p.symbol}</b></td>
+          <td>${p.net_qty}</td>
+          <td>₹${p.current_price.toLocaleString('en-IN')}</td>
+          <td class="${p.realized_pnl >= 0 ? 'green' : 'red'}">₹${p.realized_pnl.toLocaleString('en-IN')}</td>
+          <td class="${p.unrealized_pnl >= 0 ? 'green' : 'red'}">₹${p.unrealized_pnl.toLocaleString('en-IN')}</td>
+          <td class="${p.total_pnl >= 0 ? 'green' : 'red'}">₹${p.total_pnl.toLocaleString('en-IN')}</td>
+        </tr>
+      `).join('');
+    }
+    loadPositions();
+  </script>
+</body>
+</html>

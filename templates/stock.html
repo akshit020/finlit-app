@@ -29,7 +29,7 @@
     .ai-take { background: #eef2ff; border-radius: 8px; padding: 1rem;
                font-size: 0.9rem; color: #3730a3; line-height: 1.6; margin-top: 1rem; }
     .trade-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
-    input { width: 100%; padding: 0.7rem; border: 1.5px solid #e0e0e0;
+    input, select { width: 100%; padding: 0.7rem; border: 1.5px solid #e0e0e0;
             border-radius: 8px; font-size: 0.95rem; margin-bottom: 0.7rem; }
     .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
     .btn-buy { background: #16a34a; color: white; border: none; padding: 0.8rem;
@@ -40,6 +40,7 @@
            padding: 0.6rem; font-size: 0.85rem; color: #166534; margin-top: 0.5rem; }
     .err { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
            padding: 0.6rem; font-size: 0.85rem; color: #991b1b; margin-top: 0.5rem; }
+    .order-label { font-size: 0.8rem; color: #888; display: block; margin-bottom: 0.3rem; }
   </style>
 </head>
 <body>
@@ -70,8 +71,6 @@
       const changePct = d.prev_close ? ((change / d.prev_close) * 100).toFixed(2) : '0.00';
       const isUp = change >= 0;
 
-      // Chart will be drawn after HTML is inserted
-
       content.innerHTML = `
         <div class="card">
           <div class="stock-name">${d.name}</div>
@@ -94,12 +93,19 @@
           </div>
         </div>
         <div class="card">
+          <label class="order-label">Order type</label>
+          <select id="order-type" onchange="toggleOrderType()">
+            <option value="market">Market — execute now</option>
+            <option value="limit">Limit — wait for target price</option>
+            <option value="stoploss">Stop-loss — auto-sell to limit loss</option>
+          </select>
           <div class="trade-row">
             <input id="qty" type="number" placeholder="Quantity" min="1" value="1">
-            <div style="display:flex;align-items:center;color:#888;font-size:0.9rem">
+            <div id="market-total" style="display:flex;align-items:center;color:#888;font-size:0.9rem">
               Estimated total: ₹<span id="est-total">${d.current_price}</span>
             </div>
           </div>
+          <input id="trigger-price" type="number" placeholder="Trigger price (rupees)" step="0.05" style="display:none">
           <div class="btn-row">
             <button class="btn-buy" onclick="trade('buy')">Buy</button>
             <button class="btn-sell" onclick="trade('sell')">Sell</button>
@@ -107,7 +113,8 @@
           <div id="trade-msg"></div>
         </div>
       `;
-const ctx = document.getElementById('priceChart');
+
+      const ctx = document.getElementById('priceChart');
       new Chart(ctx, {
         type: 'line',
         data: {
@@ -127,14 +134,8 @@ const ctx = document.getElementById('priceChart');
           maintainAspectRatio: false,
           plugins: { legend: { display: false } },
           scales: {
-            x: {
-              ticks: { maxTicksLimit: 6, font: { size: 11 }, color: '#888' },
-              grid: { display: false }
-            },
-            y: {
-              ticks: { font: { size: 11 }, color: '#888' },
-              grid: { color: '#f0f0f0' }
-            }
+            x: { ticks: { maxTicksLimit: 6, font: { size: 11 }, color: '#888' }, grid: { display: false } },
+            y: { ticks: { font: { size: 11 }, color: '#888' }, grid: { color: '#f0f0f0' } }
           }
         }
       });
@@ -146,18 +147,48 @@ const ctx = document.getElementById('priceChart');
       });
     }
 
+    function toggleOrderType() {
+      const type = document.getElementById('order-type').value;
+      const triggerInput = document.getElementById('trigger-price');
+      const marketTotal = document.getElementById('market-total');
+      if (type === 'market') {
+        triggerInput.style.display = 'none';
+        marketTotal.style.display = 'flex';
+      } else {
+        triggerInput.style.display = 'block';
+        marketTotal.style.display = 'none';
+      }
+    }
+
     async function trade(action) {
       const qty = parseInt(document.getElementById('qty').value);
       if (!qty || qty <= 0) return;
-
-      const res = await fetch('/api/trade', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({symbol, action, qty})
-      });
-      const d = await res.json();
+      const orderType = document.getElementById('order-type').value;
       const msgEl = document.getElementById('trade-msg');
-      msgEl.className = d.success ? 'msg' : 'err';
-      msgEl.textContent = d.message || d.error;
+
+      if (orderType === 'market') {
+        const res = await fetch('/api/trade', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({symbol, action, qty})
+        });
+        const d = await res.json();
+        msgEl.className = d.success ? 'msg' : 'err';
+        msgEl.textContent = d.message || d.error;
+      } else {
+        const triggerPrice = parseFloat(document.getElementById('trigger-price').value);
+        if (!triggerPrice || triggerPrice <= 0) {
+          msgEl.className = 'err';
+          msgEl.textContent = 'Enter a valid trigger price';
+          return;
+        }
+        const res = await fetch('/api/place-order', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({symbol, action, qty, order_type: orderType, trigger_price: triggerPrice})
+        });
+        const d = await res.json();
+        msgEl.className = d.success ? 'msg' : 'err';
+        msgEl.textContent = d.message || d.error;
+      }
     }
 
     loadStock();

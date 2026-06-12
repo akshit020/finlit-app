@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orders — FinSaathi</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f0f4f8; color: #1a1a2e; }
+    nav { background: white; padding: 1rem 1.5rem; display: flex;
+          justify-content: space-between; align-items: center;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    nav h2 { color: #4f46e5; font-size: 1.2rem; }
+    nav div { display: flex; gap: 1rem; }
+    nav a { color: #666; text-decoration: none; font-size: 0.9rem; }
+    nav a:hover { color: #4f46e5; }
+    .container { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
+    h3 { font-size: 1.1rem; margin-bottom: 1rem; }
+    .card { background: white; border-radius: 12px; padding: 1.2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; padding: 0.6rem 0.8rem;
+         border-bottom: 2px solid #f0f0f0;
+         font-size: 0.8rem; color: #888; }
+    td { padding: 0.7rem 0.8rem; border-bottom: 1px solid #f8f8f8; }
+    .buy { color: #16a34a; font-weight: 600; }
+    .sell { color: #dc2626; font-weight: 600; }
+    .empty { text-align: center; color: #888; padding: 2rem; }
+    .remove-btn { background: none; border: none; color: #dc2626; cursor: pointer; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <nav>
+    <h2>FinSaathi</h2>
+    <div>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/watchlist">Watchlist</a>
+      <a href="/positions">Positions</a>
+      <a href="/orders">Orders</a>
+      <a href="/learn">Learn</a>
+      <a href="/logout">Logout</a>
+    </div>
+  </nav>
+  <div class="container">
+    <h3>Pending orders</h3>
+    <div class="card" style="margin-bottom:1.5rem">
+      <table>
+        <thead>
+          <tr><th>Stock</th><th>Type</th><th>Action</th><th>Qty</th><th>Trigger price</th><th>Current price</th><th></th></tr>
+        </thead>
+        <tbody id="pending-body">
+          <tr><td colspan="7" class="empty">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Order history — {{ username.title() }}</h3>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Stock</th>
+            <th>Action</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="orders-body">
+          <tr><td colspan="6" class="empty">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <script>
+    async function loadOrders() {
+      const res = await fetch('/api/orders');
+      const orders = await res.json();
+      const tbody = document.getElementById('orders-body');
+      if (!orders.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No trades yet — go make your first trade!</td></tr>';
+        return;
+      }
+      tbody.innerHTML = orders.map(o => {
+        const date = new Date(o.time).toLocaleString('en-IN');
+        return `<tr>
+          <td style="color:#888;font-size:0.85rem">${date}</td>
+          <td><strong>${o.symbol}</strong></td>
+          <td class="${o.action}">${o.action.toUpperCase()}</td>
+          <td>${o.qty}</td>
+          <td>₹${o.price.toLocaleString('en-IN')}</td>
+          <td>₹${o.total.toLocaleString('en-IN')}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function loadPending() {
+      const res = await fetch('/api/pending-orders');
+      const d = await res.json();
+      const body = document.getElementById('pending-body');
+      if (!d.pending || !d.pending.length) {
+        body.innerHTML = '<tr><td colspan="7" class="empty">No pending orders</td></tr>';
+      } else {
+        body.innerHTML = d.pending.map(o => `
+          <tr>
+            <td><strong>${o.symbol}</strong></td>
+            <td>${o.order_type === 'limit' ? 'Limit' : 'Stop-loss'}</td>
+            <td class="${o.action}">${o.action.toUpperCase()}</td>
+            <td>${o.qty}</td>
+            <td>₹${o.trigger_price}</td>
+            <td>₹${o.current_price ?? '—'}</td>
+            <td><button class="remove-btn" onclick="cancelOrder('${o.id}')">Cancel</button></td>
+          </tr>
+        `).join('');
+      }
+      if (d.executed_now && d.executed_now.length) {
+        loadOrders();
+      }
+    }
+
+    async function cancelOrder(id) {
+      await fetch('/api/cancel-order', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id})
+      });
+      loadPending();
+    }
+
+    loadOrders();
+    loadPending();
+  </script>
+</body>
+</html>

@@ -24,18 +24,62 @@
     .add-row button { background: #4f46e5; color: white; border: none;
                        padding: 0.7rem 1.2rem; border-radius: 8px; cursor: pointer; }
     .wl-row { display: flex; justify-content: space-between; align-items: center;
-              padding: 0.8rem 0.5rem; border-bottom: 1px solid #f0f0f0;
-              cursor: pointer; }
+              padding: 0.8rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
     .wl-row:last-child { border: none; }
     .wl-row:hover { background: #f8f9ff; border-radius: 8px; }
-    .wl-name { font-weight: 600; }
+    .wl-name-link { cursor: pointer; }
+    .wl-name { font-weight: 700; font-size: 1rem; }
+    .wl-name.up { color: #16a34a; }
+    .wl-name.down { color: #dc2626; }
     .wl-sub { font-size: 0.8rem; color: #888; }
-    .wl-price { font-weight: 600; text-align: right; }
-    .remove-btn { background: none; border: none; color: #dc2626;
-                   cursor: pointer; font-size: 0.85rem; margin-left: 1rem; }
+    .wl-right { display: flex; align-items: center; gap: 0.8rem; }
+    .wl-price-block { text-align: right; }
+    .wl-price { font-weight: 600; }
+    .wl-change { font-size: 0.8rem; }
+    .wl-change.up { color: #16a34a; }
+    .wl-change.down { color: #dc2626; }
+    .wl-actions { display: flex; gap: 4px; }
+    .wl-btn { border: none; border-radius: 6px; padding: 6px 10px; font-size: 0.78rem;
+              font-weight: 600; cursor: pointer; color: white; }
+    .wl-btn-buy { background: #16a34a; }
+    .wl-btn-sell { background: #dc2626; }
+    .remove-btn { background: none; border: none; color: #999;
+                   cursor: pointer; font-size: 0.85rem; }
     .empty { text-align: center; color: #888; padding: 2rem; }
     .err { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
            padding: 0.6rem; font-size: 0.85rem; color: #991b1b; margin-bottom: 1rem; }
+    .market-banner { font-size: 0.8rem; padding: 0.6rem 0.9rem; border-radius: 8px;
+                      margin-bottom: 1rem; }
+    .market-open { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .market-closed { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+
+    .modal-overlay { position: fixed; top:0; left:0; right:0; bottom:0;
+                      background: rgba(0,0,0,0.45); display: none;
+                      align-items: center; justify-content: center; z-index: 100; }
+    .modal-overlay.show { display: flex; }
+    .modal-box { background: white; border-radius: 12px; width: 360px; max-width: 90vw;
+                  overflow: hidden; }
+    .modal-header { padding: 1rem; color: white; }
+    .modal-header .m-name { font-size: 1.1rem; font-weight: 700; }
+    .modal-header .m-price { font-size: 0.85rem; opacity: 0.9; }
+    .modal-body { padding: 1rem; }
+    .modal-body label { font-size: 0.8rem; color: #666; display: block; margin-bottom: 0.3rem; margin-top: 0.6rem; }
+    .modal-body input, .modal-body select { width: 100%; padding: 0.6rem; border: 1.5px solid #e0e0e0;
+              border-radius: 8px; font-size: 0.9rem; }
+    .modal-tabs { display: flex; gap: 6px; margin-top: 0.4rem; }
+    .modal-tab { flex: 1; padding: 0.5rem; text-align: center; border: 1.5px solid #e0e0e0;
+                  border-radius: 8px; font-size: 0.82rem; cursor: pointer; background: white; }
+    .modal-tab.active { border-color: #4f46e5; background: #eef2ff; color: #4f46e5; font-weight: 600; }
+    .modal-est { font-size: 0.85rem; color: #888; margin-top: 0.6rem; }
+    .modal-msg { font-size: 0.85rem; margin-top: 0.6rem; padding: 0.5rem; border-radius: 6px; }
+    .modal-msg.ok { background: #f0fdf4; color: #166534; }
+    .modal-msg.bad { background: #fef2f2; color: #991b1b; }
+    .modal-amo { background: #fffbeb; color: #92400e; }
+    .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 1rem; }
+    .modal-actions button { padding: 0.7rem; border-radius: 8px; font-size: 0.95rem;
+                              font-weight: 600; cursor: pointer; border: none; }
+    .modal-confirm { color: white; }
+    .modal-cancel { background: #f0f0f0; color: #444; }
   </style>
 </head>
 <body>
@@ -44,6 +88,7 @@
     <div>
       <a href="/dashboard">Dashboard</a>
       <a href="/watchlist">Watchlist</a>
+      <a href="/positions">Positions</a>
       <a href="/orders">Orders</a>
       <a href="/learn">Learn</a>
       <a href="/logout">Logout</a>
@@ -51,6 +96,7 @@
   </nav>
   <div class="container">
     <h3>Your watchlist</h3>
+    <div id="market-banner" class="market-banner">Checking market status...</div>
     <div class="card">
       <div class="add-row">
         <input id="new-symbol" type="text" placeholder="Add stock e.g. WIPRO, ITC, SBIN"
@@ -64,7 +110,53 @@
       </div>
     </div>
   </div>
+
+  <div class="modal-overlay" id="order-modal">
+    <div class="modal-box">
+      <div class="modal-header" id="modal-header">
+        <div class="m-name" id="modal-stock-name">—</div>
+        <div class="m-price" id="modal-stock-price">—</div>
+      </div>
+      <div class="modal-body">
+        <label>Order type</label>
+        <div class="modal-tabs">
+          <div class="modal-tab active" data-type="market" onclick="setOrderType('market')">Market</div>
+          <div class="modal-tab" data-type="limit" onclick="setOrderType('limit')">Limit</div>
+          <div class="modal-tab" data-type="stoploss" onclick="setOrderType('stoploss')">SL</div>
+        </div>
+
+        <label>Quantity</label>
+        <input id="modal-qty" type="number" value="1" min="1" oninput="updateEstimate()">
+
+        <div id="modal-trigger-wrap" style="display:none">
+          <label>Trigger price (₹)</label>
+          <input id="modal-trigger" type="number" step="0.05">
+        </div>
+
+        <div class="modal-est" id="modal-est">Estimated total: ₹0</div>
+        <div id="modal-msg"></div>
+
+        <div class="modal-actions">
+          <button class="modal-confirm" id="modal-buy-btn" onclick="confirmOrder('buy')">Buy</button>
+          <button class="modal-confirm" id="modal-sell-btn" onclick="confirmOrder('sell')">Sell</button>
+        </div>
+        <button class="modal-cancel" style="width:100%;margin-top:0.5rem" onclick="closeModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script>
+    let currentStock = null;
+    let currentOrderType = 'market';
+
+    async function loadMarketStatus() {
+      const res = await fetch('/api/market-status');
+      const d = await res.json();
+      const el = document.getElementById('market-banner');
+      el.textContent = d.message + ' (IST ' + d.ist_time + ')';
+      el.className = 'market-banner ' + (d.open ? 'market-open' : 'market-closed');
+    }
+
     async function loadWatchlist() {
       const res = await fetch('/api/watchlist');
       const items = await res.json();
@@ -73,18 +165,29 @@
         body.innerHTML = '<div class="empty">No stocks yet. Add one above — try RELIANCE, TCS, or INFY</div>';
         return;
       }
-      body.innerHTML = items.map(s => `
-        <div class="wl-row" onclick="goToStock('${s.symbol}')">
-          <div>
-            <div class="wl-name">${s.symbol}</div>
+      body.innerHTML = items.map(s => {
+        const dir = s.change_pct >= 0 ? 'up' : 'down';
+        const sign = s.change_pct >= 0 ? '+' : '';
+        return `
+        <div class="wl-row">
+          <div class="wl-name-link" onclick="goToStock('${s.symbol}')">
+            <div class="wl-name ${dir}">${s.symbol}</div>
             <div class="wl-sub">${s.name}</div>
           </div>
-          <div style="display:flex;align-items:center">
-            <div class="wl-price">₹${s.price.toLocaleString('en-IN')}</div>
-            <button class="remove-btn" onclick="event.stopPropagation(); removeStock('${s.symbol}')">Remove</button>
+          <div class="wl-right">
+            <div class="wl-price-block">
+              <div class="wl-price">₹${s.price.toLocaleString('en-IN')}</div>
+              <div class="wl-change ${dir}">${sign}${s.change_pct}%</div>
+            </div>
+            <div class="wl-actions">
+              <button class="wl-btn wl-btn-buy" onclick="openModal('${s.symbol}','${s.name}',${s.price},'buy')">Buy</button>
+              <button class="wl-btn wl-btn-sell" onclick="openModal('${s.symbol}','${s.name}',${s.price},'sell')">Sell</button>
+            </div>
+            <button class="remove-btn" onclick="removeStock('${s.symbol}')">✕</button>
           </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
 
     function goToStock(symbol) {
@@ -117,6 +220,89 @@
       loadWatchlist();
     }
 
+    function openModal(symbol, name, price, side) {
+      currentStock = {symbol, name, price};
+      currentOrderType = 'market';
+      document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+      document.querySelector('.modal-tab[data-type="market"]').classList.add('active');
+      document.getElementById('modal-trigger-wrap').style.display = 'none';
+      document.getElementById('modal-qty').value = 1;
+      document.getElementById('modal-msg').innerHTML = '';
+
+      const header = document.getElementById('modal-header');
+      header.style.background = side === 'buy' ? '#16a34a' : '#dc2626';
+      document.getElementById('modal-stock-name').textContent = symbol + ' — ' + name;
+      document.getElementById('modal-stock-price').textContent = 'NSE ₹' + price.toLocaleString('en-IN');
+
+      document.getElementById('modal-buy-btn').style.background = '#16a34a';
+      document.getElementById('modal-sell-btn').style.background = '#dc2626';
+
+      updateEstimate();
+      document.getElementById('order-modal').classList.add('show');
+    }
+
+    function closeModal() {
+      document.getElementById('order-modal').classList.remove('show');
+      currentStock = null;
+    }
+
+    function setOrderType(type) {
+      currentOrderType = type;
+      document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.modal-tab[data-type="${type}"]`).classList.add('active');
+      document.getElementById('modal-trigger-wrap').style.display = type === 'market' ? 'none' : 'block';
+      updateEstimate();
+    }
+
+    function updateEstimate() {
+      if (!currentStock) return;
+      const qty = parseInt(document.getElementById('modal-qty').value) || 0;
+      const total = (qty * currentStock.price).toLocaleString('en-IN');
+      document.getElementById('modal-est').textContent = 'Estimated total: ₹' + total;
+    }
+
+    async function confirmOrder(action) {
+      if (!currentStock) return;
+      const qty = parseInt(document.getElementById('modal-qty').value);
+      const msgEl = document.getElementById('modal-msg');
+
+      if (!qty || qty <= 0) {
+        msgEl.innerHTML = '<div class="modal-msg bad">Enter a valid quantity</div>';
+        return;
+      }
+
+      if (currentOrderType === 'market') {
+        const res = await fetch('/api/trade', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({symbol: currentStock.symbol, action, qty})
+        });
+        const d = await res.json();
+        if (d.amo) {
+          msgEl.innerHTML = `<div class="modal-msg modal-amo">${d.message}</div>`;
+        } else {
+          msgEl.innerHTML = `<div class="modal-msg ${d.success ? 'ok' : 'bad'}">${d.message || d.error}</div>`;
+        }
+        if (d.success) { loadWatchlist(); }
+      } else {
+        const triggerPrice = parseFloat(document.getElementById('modal-trigger').value);
+        if (!triggerPrice || triggerPrice <= 0) {
+          msgEl.innerHTML = '<div class="modal-msg bad">Enter a valid trigger price</div>';
+          return;
+        }
+        if (currentOrderType === 'stoploss' && action !== 'sell') {
+          msgEl.innerHTML = '<div class="modal-msg bad">Stop-loss is only for selling</div>';
+          return;
+        }
+        const res = await fetch('/api/place-order', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({symbol: currentStock.symbol, action, qty, order_type: currentOrderType, trigger_price: triggerPrice})
+        });
+        const d = await res.json();
+        msgEl.innerHTML = `<div class="modal-msg ${d.success ? 'ok' : 'bad'}">${d.message || d.error}</div>`;
+      }
+    }
+
+    loadMarketStatus();
     loadWatchlist();
   </script>
 </body>

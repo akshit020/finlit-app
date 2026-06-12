@@ -1,11 +1,12 @@
 {
   "akshit": {
     "pin": "1234",
-    "balance": 90973.73,
+    "balance": 89710.73,
     "joined": "2026-06-08T15:52:22.085674",
     "watchlist": [
       "WIPRO",
-      "ITC"
+      "ITC",
+      "TCS"
     ]
   }
 }

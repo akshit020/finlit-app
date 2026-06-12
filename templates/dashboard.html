@@ -35,10 +35,10 @@
                 border-radius: 8px; cursor: pointer; font-size: 0.95rem; }
     .price-display { background: #f8f9ff; border-radius: 8px; padding: 0.8rem;
                      margin-bottom: 0.7rem; font-size: 0.9rem; color: #4f46e5; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     th { text-align: left; padding: 0.5rem; border-bottom: 1.5px solid #f0f0f0;
-         font-size: 0.8rem; color: #888; }
-    td { padding: 0.6rem 0.5rem; border-bottom: 1px solid #f8f8f8; }
+         font-size: 0.75rem; color: #888; white-space: nowrap; }
+    td { padding: 0.6rem 0.5rem; border-bottom: 1px solid #f8f8f8; white-space: nowrap; }
     .ai-box { background: #f8f9ff; border: 1.5px solid #e0e0ff; border-radius: 10px;
               padding: 1rem; }
     .ai-reply { font-size: 0.9rem; color: #333; line-height: 1.6; min-height: 60px; }
@@ -54,11 +54,12 @@
            padding: 0.6rem; font-size: 0.85rem; color: #166534; margin-top: 0.5rem; }
     .err { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
            padding: 0.6rem; font-size: 0.85rem; color: #991b1b; margin-top: 0.5rem; }
-.holdings-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8rem;
-                     margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #f0f0f0; }
-.hs-label { font-size: 0.75rem; color: #888; margin-bottom: 0.2rem; }
-.hs-val { font-size: 1.1rem; font-weight: 700; }
-    @media(max-width:640px) { .grid-3,.grid-2 { grid-template-columns:1fr; } }
+    .holdings-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8rem;
+                         margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #f0f0f0; }
+    .hs-label { font-size: 0.75rem; color: #888; margin-bottom: 0.2rem; }
+    .hs-val { font-size: 1.1rem; font-weight: 700; }
+    .table-wrap { overflow-x: auto; }
+    @media(max-width:640px) { .grid-3,.grid-2 { grid-template-columns:1fr; } .holdings-summary { grid-template-columns: repeat(2,1fr); } }
   </style>
 </head>
 <body>
@@ -67,6 +68,7 @@
     <div>
       <span class="username">{{ username.title() }}</span>
       <a href="/watchlist">Watchlist</a>
+      <a href="/positions">Positions</a>
       <a href="/orders">Orders</a>
       <a href="/learn">Learn</a>
       <a href="/logout">Logout</a>
@@ -74,12 +76,11 @@
   </nav>
 
   <div class="container">
-    <!-- Portfolio summary -->
     <div class="grid-3">
       <div class="card">
         <div class="metric-label">Cash available</div>
         <div class="metric-val" id="cash">—</div>
-        <div class="metric-sub">Virtual ₹</div>
+        <div class="metric-sub">Virtual rupees</div>
       </div>
       <div class="card">
         <div class="metric-label">Portfolio value</div>
@@ -89,15 +90,14 @@
       <div class="card">
         <div class="metric-label">Total wealth</div>
         <div class="metric-val" id="total">—</div>
-        <div class="metric-sub" id="gain-pct">vs ₹1,00,000 start</div>
+        <div class="metric-sub" id="gain-pct">vs starting balance</div>
       </div>
     </div>
 
     <div class="grid-2">
-      <!-- Trade panel -->
       <div class="card">
         <h3>Trade stocks (NSE)</h3>
-        <input id="symbol" type="text" placeholder="Symbol e.g. RELIANCE, TCS, HDFC" 
+        <input id="symbol" type="text" placeholder="Symbol e.g. RELIANCE, TCS, HDFC"
                oninput="this.value=this.value.toUpperCase()">
         <div class="price-display" id="price-display">Enter a symbol to see live price</div>
         <input id="qty" type="number" placeholder="Quantity (number of shares)" min="1">
@@ -108,7 +108,22 @@
         <div id="trade-msg"></div>
       </div>
 
-      <!-- Holdings -->
+      <div class="card">
+        <h3>Ask FinSaathi AI</h3>
+        <div class="ai-box">
+          <div class="ai-reply" id="ai-reply">
+            Hi! I'm FinSaathi. Ask me anything about investing.
+          </div>
+          <div class="ai-input-row">
+            <input id="ai-q" type="text" placeholder="Ask anything..."
+                   onkeydown="if(event.key==='Enter') askClaude()">
+            <button onclick="askClaude()">Ask</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
       <div class="card">
         <h3>Your holdings</h3>
         <div class="holdings-summary">
@@ -129,32 +144,14 @@
             <div class="hs-val" id="hs-total">₹0</div>
           </div>
         </div>
+        <div class="table-wrap">
         <table>
           <thead><tr><th>Stock</th><th>Qty</th><th>Avg cost</th><th>LTP</th><th>Invested</th><th>Cur. val</th><th>P&L</th><th>Net chg</th><th>Day chg</th></tr></thead>
-
-          <tbody id="holdings-table"><tr><td colspan="4" style="color:#888">No stocks yet</td></tr></tbody>
+          <tbody id="holdings-table"><tr><td colspan="9" style="color:#888">No stocks yet</td></tr></tbody>
         </table>
-      </div>
-    </div>
-
-    <div class="grid-2">
-      <!-- Ask Claude -->
-      <div class="card">
-        <h3>Ask FinSaathi AI</h3>
-        <div class="ai-box">
-          <div class="ai-reply" id="ai-reply">
-            Hi! I'm FinSaathi. Ask me anything about investing — what is P/E ratio, 
-            why did a stock fall, what should a beginner invest in, etc.
-          </div>
-          <div class="ai-input-row">
-            <input id="ai-q" type="text" placeholder="Ask anything..." 
-                   onkeydown="if(event.key==='Enter') askClaude()">
-            <button onclick="askClaude()">Ask</button>
-          </div>
         </div>
       </div>
 
-      <!-- Leaderboard -->
       <div class="card">
         <h3>Family leaderboard</h3>
         <div id="leaderboard">Loading...</div>
@@ -171,14 +168,13 @@
       document.getElementById('cash').textContent = '₹' + d.cash.toLocaleString('en-IN');
       document.getElementById('port-val').textContent = '₹' + d.portfolio_value.toLocaleString('en-IN');
       document.getElementById('total').textContent = '₹' + d.total.toLocaleString('en-IN');
-      
+
       const gain = d.total - 100000;
       const pct = ((gain / 100000) * 100).toFixed(2);
       const el = document.getElementById('gain-pct');
       el.textContent = (gain >= 0 ? '+' : '') + '₹' + gain.toLocaleString('en-IN') + ' (' + pct + '%)';
       el.className = 'metric-sub ' + (gain >= 0 ? 'green' : 'red');
-      
-      // Summary cards
+
       document.getElementById('hs-invested').textContent = '₹' + d.total_invested.toLocaleString('en-IN');
       document.getElementById('hs-current').textContent = '₹' + d.portfolio_value.toLocaleString('en-IN');
 
@@ -190,7 +186,6 @@
       totalEl.textContent = (d.total_pnl >= 0 ? '+' : '') + '₹' + d.total_pnl.toLocaleString('en-IN') + ' (' + d.total_pnl_pct + '%)';
       totalEl.className = 'hs-val ' + (d.total_pnl >= 0 ? 'green' : 'red');
 
-      // Holdings table
       const tbody = document.getElementById('holdings-table');
       if (d.holdings.length === 0) {
         tbody.innerHTML = '<tr><td colspan="9" style="color:#888">No stocks yet</td></tr>';
@@ -203,9 +198,7 @@
             <td>₹${h.current_price}</td>
             <td>₹${h.invested.toLocaleString('en-IN')}</td>
             <td>₹${h.current_value.toLocaleString('en-IN')}</td>
-            <td class="${h.pnl >= 0 ? 'green' : 'red'}">
-              ${h.pnl >= 0 ? '+' : ''}₹${h.pnl.toLocaleString('en-IN')}
-            </td>
+            <td class="${h.pnl >= 0 ? 'green' : 'red'}">${h.pnl >= 0 ? '+' : ''}₹${h.pnl.toLocaleString('en-IN')}</td>
             <td class="${h.pnl_pct >= 0 ? 'green' : 'red'}">${h.pnl_pct >= 0 ? '+' : ''}${h.pnl_pct}%</td>
             <td class="${h.day_change_pct >= 0 ? 'green' : 'red'}">${h.day_change_pct >= 0 ? '+' : ''}${h.day_change_pct}%</td>
           </tr>`
@@ -237,21 +230,17 @@
       const symbol = document.getElementById('symbol').value;
       const qty = parseInt(document.getElementById('qty').value);
       if (!symbol || !qty) { showMsg('Enter symbol and quantity', false); return; }
-      
+
       const res = await fetch('/api/trade', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({symbol, action, qty})
       });
       const d = await res.json();
       showMsg(d.message || d.error, !!d.success);
-      
+
       if (d.success) {
         loadPortfolio();
         loadLeaderboard();
-        // Auto-ask Claude to explain the trade
-        const tradeCtx = `User just ${action === 'buy' ? 'bought' : 'sold'} ${qty} shares of ${symbol} at ₹${lastPrice}`;
-        document.getElementById('ai-q').value = `Why might someone ${action} ${symbol}?`;
-        askClaude(tradeCtx);
       }
     }
 
@@ -263,15 +252,15 @@
       setTimeout(() => el.style.display = 'none', 4000);
     }
 
-    async function askClaude(context = '') {
+    async function askClaude() {
       const q = document.getElementById('ai-q').value;
       if (!q) return;
       const replyEl = document.getElementById('ai-reply');
       replyEl.textContent = 'FinSaathi is thinking...';
-      
+
       const res = await fetch('/api/ask-claude', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({question: q, context})
+        body: JSON.stringify({question: q})
       });
       const d = await res.json();
       replyEl.textContent = d.reply || d.error;

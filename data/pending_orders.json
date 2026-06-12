@@ -1,0 +1,14 @@
+{
+  "akshit": [
+    {
+      "id": "akshit_1781173228",
+      "symbol": "WIPRO",
+      "action": "buy",
+      "order_type": "limit",
+      "trigger_price": 174.0,
+      "qty": 1,
+      "status": "pending",
+      "created_at": "2026-06-11T15:50:28.706539"
+    }
+  ]
+}
