@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 import anthropic
 from dotenv import load_dotenv
 
+from gamification import update_streak, award_xp, get_gamification_data
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -14,16 +16,9 @@ app.secret_key = "finlit-family-secret-2024"
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 STARTING_BALANCE = 100000
+_movers_cache = {"data": None, "time": None}
 
-def load_json(path):
-    if not os.path.exists(path) or os.path.getsize(path) == 0:
-        return {}
-    with open(path) as f:
-        return json.load(f)
-
-def save_json(path, data):
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+from db import load_json, save_json
 
 def get_price(symbol):
     try:
@@ -144,18 +139,41 @@ def get_portfolio_value(username):
         "holdings": holdings_detail
     }
 
-STOCK_NAMES = {
-    "RELIANCE": "Reliance Industries",
-    "TCS": "Tata Consultancy Services",
-    "INFY": "Infosys Ltd",
-    "HDFCBANK": "HDFC Bank",
-    "ICICIBANK": "ICICI Bank",
-    "SBIN": "State Bank of India",
-    "ITC": "ITC Limited",
-    "WIPRO": "Wipro Ltd",
-    "TATAMOTORS": "Tata Motors",
-    "BHARTIARTL": "Bharti Airtel"
+STOCK_UNIVERSE = {
+    "RELIANCE": {"name": "Reliance Industries", "cap": "large"},
+    "TCS": {"name": "Tata Consultancy Services", "cap": "large"},
+    "HDFCBANK": {"name": "HDFC Bank", "cap": "large"},
+    "ICICIBANK": {"name": "ICICI Bank", "cap": "large"},
+    "INFY": {"name": "Infosys Ltd", "cap": "large"},
+    "ITC": {"name": "ITC Limited", "cap": "large"},
+    "SBIN": {"name": "State Bank of India", "cap": "large"},
+    "BHARTIARTL": {"name": "Bharti Airtel", "cap": "large"},
+    "HINDUNILVR": {"name": "Hindustan Unilever", "cap": "large"},
+    "LT": {"name": "Larsen and Toubro", "cap": "large"},
+
+    "WIPRO": {"name": "Wipro Ltd", "cap": "mid"},
+    "TATAMOTORS": {"name": "Tata Motors", "cap": "mid"},
+    "FEDERALBNK": {"name": "Federal Bank", "cap": "mid"},
+    "IDFCFIRSTB": {"name": "IDFC First Bank", "cap": "mid"},
+    "GODREJPROP": {"name": "Godrej Properties", "cap": "mid"},
+    "AUROPHARMA": {"name": "Aurobindo Pharma", "cap": "mid"},
+    "MPHASIS": {"name": "Mphasis Ltd", "cap": "mid"},
+    "COFORGE": {"name": "Coforge Ltd", "cap": "mid"},
+    "IRCTC": {"name": "Indian Railway Catering and Tourism", "cap": "mid"},
+    "PAGEIND": {"name": "Page Industries", "cap": "mid"},
+
+    "TANLA": {"name": "Tanla Platforms", "cap": "small"},
+    "HAPPSTMNDS": {"name": "Happiest Minds Technologies", "cap": "small"},
+    "CAMS": {"name": "Computer Age Management Services", "cap": "small"},
+    "ROUTE": {"name": "Route Mobile", "cap": "small"},
+    "CDSL": {"name": "Central Depository Services", "cap": "small"},
+    "SUZLON": {"name": "Suzlon Energy", "cap": "small"},
+    "YESBANK": {"name": "Yes Bank", "cap": "small"},
+    "IDEA": {"name": "Vodafone Idea", "cap": "small"},
+    "RAILTEL": {"name": "RailTel Corporation", "cap": "small"},
+    "METROPOLIS": {"name": "Metropolis Healthcare", "cap": "small"}
 }
+STOCK_NAMES = {sym: info["name"] for sym, info in STOCK_UNIVERSE.items()}
 
 STOCK_TAKES = {
     "RELIANCE": "India's largest company by market cap, spanning oil, telecom (Jio), and retail. Considered relatively stable for beginners due to its size and diversification.",
@@ -229,6 +247,8 @@ def execute_trade(username, symbol, action, qty, price):
 
     save_json("data/users.json", users)
     save_json("data/trades.json", trades)
+
+    award_xp(username, 15)
 
     return {
         "success": True,
@@ -356,6 +376,16 @@ def api_portfolio():
     if "user" not in session:
         return jsonify({"error": "Not logged in"}), 401
     return jsonify(get_portfolio_value(session["user"]))
+
+@app.route("/api/gamification")
+def api_gamification():
+    if "user" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    username = session["user"]
+    streak, xp_awarded = update_streak(username)
+    data = get_gamification_data(username)
+    data["xp_awarded_today"] = xp_awarded
+    return jsonify(data)
 
 @app.route("/api/price/<symbol>")
 def api_price(symbol):
@@ -552,7 +582,10 @@ def api_add_watchlist():
         user["watchlist"] = []
     if symbol not in user["watchlist"]:
         user["watchlist"].append(symbol)
-    save_json("data/users.json", users)
+        save_json("data/users.json", users)
+        award_xp(session["user"], 5)
+    else:
+        save_json("data/users.json", users)
     return jsonify({"success": True})
 
 @app.route("/api/watchlist/remove", methods=["POST"])
@@ -568,7 +601,48 @@ def api_remove_watchlist():
         user["watchlist"].remove(symbol)
     save_json("data/users.json", users)
     return jsonify({"success": True})
+@app.route("/api/search-stocks")
+def api_search_stocks():
+    q = request.args.get("q", "").upper().strip()
+    if not q:
+        return jsonify([])
+    results = []
+    for sym, info in STOCK_UNIVERSE.items():
+        if q in sym or q in info["name"].upper():
+            results.append({"symbol": sym, "name": info["name"], "cap": info["cap"]})
+    results.sort(key=lambda x: (not x["symbol"].startswith(q), x["symbol"]))
+    return jsonify(results[:8])
 
+@app.route("/api/market-movers")
+def api_market_movers():
+    now = datetime.now()
+    if _movers_cache["data"] and _movers_cache["time"] and (now - _movers_cache["time"]).seconds < 300:
+        return jsonify(_movers_cache["data"])
+
+    categories = {"large": [], "mid": [], "small": []}
+    for sym, info in STOCK_UNIVERSE.items():
+        current, prev = get_price_and_prev(sym)
+        if current is None or prev is None:
+            continue
+        if math.isnan(current) or math.isnan(prev) or prev == 0:
+            continue
+        change_pct = round(((current - prev) / prev) * 100, 2)
+        categories[info["cap"]].append({
+            "symbol": sym, "name": info["name"], "price": round(current, 2), "change_pct": change_pct
+        })
+
+    result = {}
+    for cap, stocks in categories.items():
+        if not stocks:
+            result[cap] = {"gainer": None, "loser": None}
+            continue
+        gainer = max(stocks, key=lambda x: x["change_pct"])
+        loser = min(stocks, key=lambda x: x["change_pct"])
+        result[cap] = {"gainer": gainer, "loser": loser}
+
+    _movers_cache["data"] = result
+    _movers_cache["time"] = now
+    return jsonify(result)
 @app.route("/stock/<symbol>")
 def stock_detail(symbol):
     if "user" not in session:

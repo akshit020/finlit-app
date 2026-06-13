@@ -7,6 +7,10 @@
       "WIPRO",
       "ITC",
       "TCS"
-    ]
+    ],
+    "xp": 20,
+    "coins": 0,
+    "streak": 2,
+    "last_active": "2026-06-14"
   }
 }

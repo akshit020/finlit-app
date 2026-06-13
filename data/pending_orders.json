@@ -9,6 +9,26 @@
       "qty": 1,
       "status": "pending",
       "created_at": "2026-06-11T15:50:28.706539"
+    },
+    {
+      "id": "akshit_1781349098",
+      "symbol": "TCS",
+      "action": "buy",
+      "order_type": "amo",
+      "trigger_price": 2161.4,
+      "qty": 2,
+      "status": "pending",
+      "created_at": "2026-06-13T16:41:38.583147"
+    },
+    {
+      "id": "akshit_1781349751",
+      "symbol": "INFY",
+      "action": "buy",
+      "order_type": "amo",
+      "trigger_price": 1116.4,
+      "qty": 2,
+      "status": "pending",
+      "created_at": "2026-06-13T16:52:31.909005"
     }
   ]
 }
