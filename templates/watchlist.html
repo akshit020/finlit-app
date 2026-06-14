@@ -304,8 +304,10 @@
         const d = await res.json();
         if (d.amo) {
           msgEl.innerHTML = `<div class="modal-msg modal-amo">${d.message}</div>`;
+          FinSounds.amo();
         } else {
           msgEl.innerHTML = `<div class="modal-msg ${d.success ? 'ok' : 'bad'}">${d.message || d.error}</div>`;
+          if (d.success) { FinSounds.success(); } else { FinSounds.error(); }
         }
         if (d.success) { loadWatchlist(); }
       } else {
@@ -324,11 +326,13 @@
         });
         const d = await res.json();
         msgEl.innerHTML = `<div class="modal-msg ${d.success ? 'ok' : 'bad'}">${d.message || d.error}</div>`;
+        if (d.success) { FinSounds.success(); } else { FinSounds.error(); }
       }
     }
 
     loadMarketStatus();
     loadWatchlist();
   </script>
+  <script src="/static/sounds.js"></script>
 </body>
 </html>

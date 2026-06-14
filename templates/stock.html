@@ -197,13 +197,27 @@
           body: JSON.stringify({symbol, action, qty})
         });
         const d = await res.json();
+        if (orderType === 'market') {
+        const res = await fetch('/api/trade', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({symbol, action, qty})
+        });
+        const d = await res.json();
         msgEl.className = d.success ? 'msg' : 'err';
         msgEl.textContent = d.message || d.error;
+        if (d.amo) { FinSounds.amo(); }
+        else if (d.success) { FinSounds.success(); }
+        else { FinSounds.error(); }
       } else {
         const triggerPrice = parseFloat(document.getElementById('trigger-price').value);
         if (!triggerPrice || triggerPrice <= 0) {
           msgEl.className = 'err';
           msgEl.textContent = 'Enter a valid trigger price';
+          return;
+        }
+        if (orderType === 'stoploss' && action !== 'sell') {
+          msgEl.className = 'err';
+          msgEl.textContent = 'Stop-loss is only for selling';
           return;
         }
         const res = await fetch('/api/place-order', {
@@ -213,10 +227,12 @@
         const d = await res.json();
         msgEl.className = d.success ? 'msg' : 'err';
         msgEl.textContent = d.message || d.error;
+        if (d.success) { FinSounds.success(); } else { FinSounds.error(); }
       }
     }
 
     loadStock();
   </script>
+  <script src="/static/sounds.js"></script>
 </body>
 </html>

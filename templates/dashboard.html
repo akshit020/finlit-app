@@ -352,9 +352,22 @@
     let modalAction = 'buy';
     let currentOrderType = 'market';
 
+      let _lastXp = null;
+    let _lastLevel = null;
+    let _lastCoins = null;
+
     async function loadGamification() {
       const res = await fetch('/api/gamification');
       const d = await res.json();
+
+      if (_lastLevel !== null && d.level > _lastLevel) {
+        FinSounds.levelUp();
+      } else if (_lastXp !== null && (d.xp > _lastXp || d.coins > _lastCoins)) {
+        FinSounds.coin();
+      }
+      _lastXp = d.xp;
+      _lastLevel = d.level;
+      _lastCoins = d.coins;
 
       document.getElementById('level-badge-text').textContent = 'Level ' + d.level + ' · ' + d.level_name;
       document.getElementById('streak-val').textContent = d.streak + (d.streak === 1 ? ' day' : ' days');
@@ -537,8 +550,10 @@
         const d = await res.json();
         if (d.amo) {
           msgEl.innerHTML = `<div class="modal-msg modal-amo">${d.message}</div>`;
+          FinSounds.amo();
         } else {
           msgEl.innerHTML = `<div class="modal-msg ${d.success ? 'ok' : 'bad'}">${d.message || d.error}</div>`;
+          if (d.success) { FinSounds.success(); } else { FinSounds.error(); }
         }
         if (d.success) {
           loadPortfolio(); loadLeaderboard(); loadGamification();
@@ -559,6 +574,7 @@
         });
         const d = await res.json();
         msgEl.innerHTML = `<div class="modal-msg ${d.success ? 'ok' : 'bad'}">${d.message || d.error}</div>`;
+        if (d.success) { FinSounds.success(); } else { FinSounds.error(); }
       }
     }
 
@@ -627,5 +643,6 @@
     loadLeaderboard();
     loadMovers();
   </script>
+  <script src="/static/sounds.js"></script>
 </body>
 </html>
