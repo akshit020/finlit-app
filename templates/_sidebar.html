@@ -1,0 +1,99 @@
+ <style>
+  .page-layout { display: flex; align-items: flex-start; }
+  .fs-sidebar {
+    width: 320px; flex-shrink: 0; background: #fff; border-right: 1px solid #EFEFF5;
+    padding: 1.2rem; position: sticky; top: 1rem; max-height: calc(100vh - 2rem);
+    overflow-y: auto; border-radius: 0 12px 12px 0;
+  }
+  .fs-sidebar-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem; }
+  .fs-sidebar-head h4 { font-size:0.85rem; font-weight:700; color:#1A1A2E; margin:0; }
+  .fs-sidebar-add-btn { background:none; border:1.5px solid #EFEFF5; color:#5B4FE5; font-size:1rem;
+                         cursor:pointer; line-height:1; padding:2px 8px; border-radius:6px; }
+  .fs-sidebar-add-btn:hover { background:#F4F3FF; }
+  .fs-add-row { display:none; gap:4px; margin-bottom:0.6rem; }
+  .fs-add-row.show { display:flex; }
+  .fs-add-row input { flex:1; padding:0.4rem 0.5rem; border:1.5px solid #EFEFF5; border-radius:8px; font-size:0.8rem; }
+  .fs-add-row button { background:#5B4FE5; color:#fff; border:none; border-radius:8px; padding:0.4rem 0.6rem; font-size:0.8rem; cursor:pointer; }
+  .fs-sidebar-item { display:flex; justify-content:space-between; align-items:center; padding:0.7rem 0.5rem; border-radius:8px; cursor:pointer; border-bottom: 1px solid #F8F8FB; }
+  .fs-sidebar-item:last-child { border-bottom: none; }
+  .fs-sidebar-item:hover { background:#F8F8FB; }
+  .fs-si-sym { font-size:0.88rem; font-weight:700; }
+  .fs-si-sym.up { color:#00B386; }
+  .fs-si-sym.down { color:#E2434F; }
+  .fs-si-name { font-size:0.72rem; color:#8B8B9E; margin-top:1px; }
+  .fs-si-right { text-align:right; }
+  .fs-si-price { font-size:0.85rem; font-weight:600; color:#1A1A2E; }
+  .fs-si-chg { font-size:0.74rem; margin-top:1px; }
+  .fs-si-chg.up { color:#00B386; }
+  .fs-si-chg.down { color:#E2434F; }
+  .fs-sidebar-empty { font-size:0.78rem; color:#8B8B9E; padding:0.5rem 0.3rem; }
+  .fs-sidebar-footer { margin-top:0.8rem; padding-top:0.6rem; border-top:1px solid #EFEFF5; }
+  .fs-sidebar-footer a { font-size:0.78rem; color:#5B4FE5; text-decoration:none; font-weight:600; }
+  .main-content { flex:1; min-width:0; }
+  @media (max-width: 900px) {
+    .fs-sidebar { display:none; }
+  }
+</style>
+
+<aside class="fs-sidebar">
+  <div class="fs-sidebar-head">
+    <h4>Watchlist</h4>
+    <button class="fs-sidebar-add-btn" onclick="toggleSidebarAdd()">+</button>
+  </div>
+  <div class="fs-add-row" id="fs-add-row">
+    <input id="fs-add-input" type="text" placeholder="Symbol" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter') fsAddStock()">
+    <button onclick="fsAddStock()">Add</button>
+  </div>
+  <div id="fs-sidebar-list">
+    <div class="fs-sidebar-empty">Loading...</div>
+  </div>
+  <div class="fs-sidebar-footer">
+    <a href="/watchlist">Manage watchlist →</a>
+  </div>
+</aside>
+
+<script>
+  function toggleSidebarAdd() {
+    document.getElementById('fs-add-row').classList.toggle('show');
+  }
+
+  async function fsAddStock() {
+    const input = document.getElementById('fs-add-input');
+    const symbol = input.value.trim();
+    if (!symbol) return;
+    await fetch('/api/watchlist/add', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({symbol})
+    });
+    input.value = '';
+    loadSidebarWatchlist();
+  }
+
+  async function loadSidebarWatchlist() {
+    const res = await fetch('/api/watchlist');
+    const items = await res.json();
+    const list = document.getElementById('fs-sidebar-list');
+    if (!items.length) {
+      list.innerHTML = '<div class="fs-sidebar-empty">No stocks yet. Click + to add one.</div>';
+      return;
+    }
+    list.innerHTML = items.map(s => {
+      const dir = s.change_pct >= 0 ? 'up' : 'down';
+      const sign = s.change_pct >= 0 ? '+' : '';
+      return `
+        <div class="fs-sidebar-item" onclick="window.location='/stock/${s.symbol}'">
+          <div>
+            <div class="fs-si-sym ${dir}">${s.symbol}</div>
+            <div class="fs-si-name">${s.name}</div>
+          </div>
+          <div class="fs-si-right">
+            <div class="fs-si-price">₹${s.price.toLocaleString('en-IN')}</div>
+            <div class="fs-si-chg ${dir}">${sign}${s.change_pct}%</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  loadSidebarWatchlist();
+</script>

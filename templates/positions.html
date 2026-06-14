@@ -39,6 +39,9 @@
       <a href="/logout">Logout</a>
     </div>
   </nav>
+  <div class="page-layout">
+  {% include '_sidebar.html' %}
+  <div class="main-content">
   <div class="container">
     <h3>Positions</h3>
     <p class="sub">Today's trading activity — resets every day</p>
@@ -56,6 +59,9 @@
       </table>
     </div>
   </div>
+  </div>
+  </div>
+
   <script>
     async function loadPositions() {
       const res = await fetch('/api/positions');

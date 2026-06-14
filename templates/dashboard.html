@@ -34,7 +34,8 @@
     nav a { color: var(--muted); text-decoration: none; font-size: 0.9rem; font-weight: 500; }
     nav a:hover { color: var(--brand); }
     .username { font-weight: 600; color: var(--text); font-size: 0.9rem; }
-    .container { max-width: none; margin: 0; padding: 1.5rem 2rem; }
+    .container { max-width: none; margin: 0; padding: 1rem 1.5rem; }
+    .main-content { padding-top: 0; }
 
     .hero { margin-bottom: 1.2rem; }
     .hero-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
@@ -119,7 +120,7 @@
     .cap-mid { background: #FAEEDA; color: #854F0B; }
     .cap-small { background: #EAF3DE; color: #3B6D11; }
 
-    .movers-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+    .movers-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
     .mover-cat { border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
     .mover-cat h4 { font-size: 0.75rem; color: var(--muted); margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
     .mover-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; cursor: pointer; }
@@ -175,6 +176,9 @@
     </div>
   </nav>
 
+  <div class="page-layout">
+  {% include '_sidebar.html' %}
+  <div class="main-content">
   <div class="container">
 
     <div class="hero">
@@ -264,15 +268,7 @@
     </div>
 
     <div class="card" style="margin-bottom:1.2rem">
-      <h3>Market movers</h3>
-      <div class="movers-grid" id="movers-grid">
-        <div style="color:var(--muted)">Loading market movers...</div>
-      </div>
-    </div>
-
-    <div class="grid-2">
-      <div class="card">
-        <h3>Your holdings</h3>
+      <h3>Your holdings</h3>
         <div class="holdings-summary">
           <div>
             <div class="hs-label">Total invested</div>
@@ -297,6 +293,14 @@
           <tbody id="holdings-table"><tr><td colspan="9" style="color:var(--muted)">No stocks yet</td></tr></tbody>
         </table>
         </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>Market movers</h3>
+        <div class="movers-grid" id="movers-grid">
+          <div style="color:var(--muted)">Loading market movers...</div>
+        </div>
       </div>
 
       <div class="card">
@@ -304,6 +308,9 @@
         <div id="leaderboard">Loading...</div>
       </div>
     </div>
+  </div>
+
+  </div>
   </div>
 
   <div class="modal-overlay" id="order-modal">

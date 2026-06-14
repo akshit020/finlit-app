@@ -41,6 +41,9 @@
       <a href="/logout">Logout</a>
     </div>
   </nav>
+  <div class="page-layout">
+  {% include '_sidebar.html' %}
+  <div class="main-content">
   <div class="container">
     <h3>Pending orders</h3>
     <div class="card" style="margin-bottom:1.5rem">
@@ -73,6 +76,9 @@
       </table>
     </div>
   </div>
+  </div>
+  </div>
+
   <script>
     async function loadOrders() {
       const res = await fetch('/api/orders');

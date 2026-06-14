@@ -51,9 +51,15 @@
       <a href="/dashboard">Dashboard</a>
     </div>
   </nav>
+  <div class="page-layout">
+  {% include '_sidebar.html' %}
+  <div class="main-content">
   <div class="container" id="content">
     <div class="card">Loading stock data...</div>
   </div>
+  </div>
+  </div>
+
   <script>
     const symbol = "{{ symbol }}";
 
