@@ -8,7 +8,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #f0f4f8; display: flex;
            justify-content: center; align-items: center; min-height: 100vh; }
-    .card { background: white; border-radius: 16px; padding: 2rem; width: 360px;
+    .card { background: white; border-radius: 16px; padding: 2rem; width: 380px;
             box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
     h1 { font-size: 1.5rem; color: #1a1a2e; margin-bottom: 0.25rem; }
     .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 1.5rem; }
@@ -22,8 +22,10 @@
     .toggle { text-align: center; margin-top: 1rem; font-size: 0.85rem; color: #666; }
     .toggle a { color: #4f46e5; cursor: pointer; text-decoration: none; }
     .error { color: #dc2626; font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .success-msg { color: #16a34a; font-size: 0.85rem; margin-bottom: 0.5rem; }
     .badge { background: #eef2ff; color: #4f46e5; padding: 0.3rem 0.8rem;
              border-radius: 20px; font-size: 0.8rem; display: inline-block; margin-bottom: 1rem; }
+    .hint { font-size: 0.78rem; color: #888; margin-top: -0.7rem; margin-bottom: 1rem; }
   </style>
 </head>
 <body>
@@ -31,35 +33,81 @@
     <span class="badge">Family Beta — Private</span>
     <h1>FinSaathi</h1>
     <p class="subtitle">Learn investing with virtual money. No real money involved.</p>
+
     <div id="error" class="error" style="display:none"></div>
+    <div id="success-box" class="success-msg" style="display:none"></div>
+
     <div id="login-form">
       <label>Your name</label>
       <input id="name" type="text" placeholder="e.g. akshit" autocomplete="off">
       <label>PIN (4 digits)</label>
       <input id="pin" type="password" placeholder="1234" maxlength="6">
       <button onclick="doLogin()">Login</button>
-      <div class="toggle">New here? <a onclick="toggleForm()">Create account</a></div>
+      <div class="toggle">
+        New here? <a onclick="toggleForm('register')">Create account</a><br>
+        <a onclick="toggleForm('forgot')">Forgot PIN?</a>
+      </div>
     </div>
+
     <div id="register-form" style="display:none">
       <label>Choose a name</label>
       <input id="reg-name" type="text" placeholder="e.g. priya" autocomplete="off">
       <label>Choose a PIN (4+ digits)</label>
       <input id="reg-pin" type="password" placeholder="1234" maxlength="6">
-      <button onclick="doRegister()">Create account &amp; get ₹1,00,000</button>
-      <div class="toggle">Already registered? <a onclick="toggleForm()">Login</a></div>
+      <label>Recovery question: What's your favourite food?</label>
+      <input id="reg-recovery" type="text" placeholder="e.g. biryani" autocomplete="off">
+      <p class="hint">Remember this answer — you'll need it if you forget your PIN.</p>
+      <button onclick="doRegister()">Create account & get ₹1,00,000</button>
+      <div class="toggle">Already registered? <a onclick="toggleForm('login')">Login</a></div>
+    </div>
+
+    <div id="forgot-form" style="display:none">
+      <label>Your name</label>
+      <input id="forgot-name" type="text" placeholder="e.g. akshit" autocomplete="off">
+      <label>What's your favourite food?</label>
+      <input id="forgot-answer" type="text" placeholder="Your answer" autocomplete="off">
+      <button onclick="doVerifyRecovery()">Verify</button>
+      <div class="toggle">Remembered it? <a onclick="toggleForm('login')">Login</a></div>
+    </div>
+
+    <div id="reset-form" style="display:none">
+      <label>New PIN (4+ digits)</label>
+      <input id="reset-pin" type="password" placeholder="1234" maxlength="6">
+      <button onclick="doResetPin()">Set new PIN</button>
     </div>
   </div>
+
+  <div style="text-align:center; margin-top: 1rem;">
+    <a href="/about" style="color: #4f46e5; font-size: 0.85rem; text-decoration: none;">What is FinSaathi?</a>
+  </div>
+
   <script>
-    function toggleForm() {
-      const l = document.getElementById('login-form');
-      const r = document.getElementById('register-form');
-      l.style.display = l.style.display === 'none' ? 'block' : 'none';
-      r.style.display = r.style.display === 'none' ? 'block' : 'none';
+    let recoveryName = '';
+    let recoveryAnswer = '';
+
+    function hideAllForms() {
+      ['login-form', 'register-form', 'forgot-form', 'reset-form'].forEach(id => {
+        document.getElementById(id).style.display = 'none';
+      });
+      document.getElementById('error').style.display = 'none';
+      document.getElementById('success-box').style.display = 'none';
     }
+
+    function toggleForm(which) {
+      hideAllForms();
+      document.getElementById(which + '-form').style.display = 'block';
+    }
+
     function showError(msg) {
       const e = document.getElementById('error');
       e.textContent = msg; e.style.display = 'block';
     }
+
+    function showSuccess(msg) {
+      const e = document.getElementById('success-box');
+      e.textContent = msg; e.style.display = 'block';
+    }
+
     async function doLogin() {
       const name = document.getElementById('name').value;
       const pin = document.getElementById('pin').value;
@@ -71,16 +119,53 @@
       if (data.success) window.location = '/dashboard';
       else showError(data.error);
     }
+
     async function doRegister() {
       const name = document.getElementById('reg-name').value;
       const pin = document.getElementById('reg-pin').value;
+      const recovery_answer = document.getElementById('reg-recovery').value;
       const res = await fetch('/register', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({name, pin})
+        body: JSON.stringify({name, pin, recovery_answer})
       });
       const data = await res.json();
       if (data.success) window.location = '/dashboard';
       else showError(data.error);
+    }
+
+    async function doVerifyRecovery() {
+      const name = document.getElementById('forgot-name').value;
+      const answer = document.getElementById('forgot-answer').value;
+      const res = await fetch('/api/recover-check', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name, answer})
+      });
+      const data = await res.json();
+      if (data.success) {
+        recoveryName = name;
+        recoveryAnswer = answer;
+        hideAllForms();
+        document.getElementById('reset-form').style.display = 'block';
+        showSuccess('Verified! Set your new PIN below.');
+      } else {
+        showError(data.error);
+      }
+    }
+
+    async function doResetPin() {
+      const new_pin = document.getElementById('reset-pin').value;
+      const res = await fetch('/api/reset-pin', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: recoveryName, answer: recoveryAnswer, new_pin})
+      });
+      const data = await res.json();
+      if (data.success) {
+        hideAllForms();
+        toggleForm('login');
+        showSuccess('PIN reset! Please login with your new PIN.');
+      } else {
+        showError(data.error);
+      }
     }
   </script>
 </body>

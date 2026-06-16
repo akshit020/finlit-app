@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About — FinSaathi</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --brand: #5B4FE5;
+      --brand-dark: #4338CA;
+      --mint: #00B386;
+      --mint-bg: #E6FBF5;
+      --coral: #E2434F;
+      --coral-bg: #FFEDEF;
+      --gold: #FFD166;
+      --gold-bg: #FFF6E0;
+      --bg: #FAFAFC;
+      --card: #ffffff;
+      --border: #EFEFF5;
+      --text: #1A1A2E;
+      --muted: #8B8B9E;
+    }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    h1, h2, h3, .heading { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; }
+    nav { background: var(--card); padding: 1rem 1.5rem; display: flex;
+          justify-content: space-between; align-items: center;
+          border-bottom: 1px solid var(--border); }
+    nav h2 { color: var(--brand); font-size: 1.2rem; }
+    nav div { display: flex; gap: 1.2rem; align-items: center; }
+    nav a { color: var(--muted); text-decoration: none; font-size: 0.9rem; font-weight: 500; }
+    nav a:hover { color: var(--brand); }
+    nav a.active { color: var(--brand); }
+    .container { max-width: 720px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+    .hero-section { text-align: center; margin-bottom: 2.5rem; }
+    .hero-badge { display: inline-block; background: #EEEDFE; color: #3C3489; font-size: 0.75rem;
+                  font-weight: 600; padding: 5px 14px; border-radius: 20px; margin-bottom: 1rem; }
+    .hero-title { font-size: 2rem; margin-bottom: 0.6rem; }
+    .hero-sub { font-size: 1rem; color: var(--muted); max-width: 480px; margin: 0 auto; line-height: 1.6; }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+            padding: 1.6rem; margin-bottom: 1.2rem; }
+    .card h3 { font-size: 1.05rem; margin-bottom: 0.7rem; display: flex; align-items: center; gap: 8px; }
+    .card p { font-size: 0.92rem; line-height: 1.7; color: #333; margin-bottom: 0.7rem; }
+    .card p:last-child { margin-bottom: 0; }
+
+    .steps-list { list-style: none; padding: 0; }
+    .steps-list li { display: flex; gap: 12px; margin-bottom: 1rem; align-items: flex-start; }
+    .steps-list li:last-child { margin-bottom: 0; }
+    .step-num { width: 26px; height: 26px; border-radius: 50%; background: #F4F3FF; color: var(--brand);
+                display: flex; align-items: center; justify-content: center; font-size: 0.8rem;
+                font-weight: 700; flex-shrink: 0; }
+    .step-text { font-size: 0.92rem; line-height: 1.6; padding-top: 2px; }
+
+    .pill-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 0.5rem; }
+    .tech-pill { background: var(--mint-bg); color: #00664D; font-size: 0.78rem; font-weight: 600;
+                 padding: 5px 12px; border-radius: 14px; }
+
+    .disclaimer { background: var(--gold-bg); border: 1px solid #FFE3A8; border-radius: 16px;
+                  padding: 1.4rem 1.6rem; }
+    .disclaimer h3 { color: #7A4A00; }
+    .disclaimer p { color: #7A4A00; font-size: 0.88rem; }
+
+    .signature { text-align: center; margin-top: 2rem; font-size: 0.88rem; color: var(--muted); }
+    .signature strong { color: var(--text); }
+
+    .cta-row { text-align: center; margin-top: 2rem; }
+    .cta-btn { display: inline-block; background: var(--brand); color: #fff; padding: 0.8rem 2rem;
+               border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+  <nav>
+    <h2>FinSaathi</h2>
+    <div>
+      {% if logged_in %}
+        <span style="font-weight:600;color:var(--text);font-size:0.9rem">{{ username.title() }}</span>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/watchlist">Watchlist</a>
+        <a href="/positions">Positions</a>
+        <a href="/orders">Orders</a>
+        <a href="/learn">Learn</a>
+        <a href="/about" class="active">About</a>
+        <a href="/logout">Logout</a>
+      {% else %}
+        <a href="/about" class="active">About</a>
+        <a href="/">Login</a>
+      {% endif %}
+    </div>
+  </nav>
+
+  <div class="container">
+
+    <div class="hero-section">
+      <span class="hero-badge">Family Beta — Private</span>
+      <h1 class="hero-title">About FinSaathi</h1>
+      <p class="hero-sub">A safe space to learn the stock market — using real prices, virtual money, and zero risk.</p>
+    </div>
+
+    <div class="card">
+      <h3>🎯 What this is</h3>
+      <p>FinSaathi is a virtual stock trading platform built to help people learn investing without the fear of losing real money. You get ₹1,00,000 of virtual capital, and you can buy and sell real NSE-listed stocks using live market prices — exactly like a real brokerage app, just without real money on the line.</p>
+      <p>Think of it as a flight simulator for investing: the controls are real, the market is real, but nothing crashes for real.</p>
+    </div>
+
+    <div class="card">
+      <h3>💬 Why I built it</h3>
+      <p>Most of us were never taught how to invest — not in school, not at home. Many people assume the stock market is gambling, simply because no one ever explained the basics in a low-pressure way.</p>
+      <p>I built FinSaathi for our family — a small, private space where everyone, regardless of experience, can practice investing, make mistakes that don't cost anything, and slowly build the confidence to invest for real one day.</p>
+    </div>
+
+    <div class="card">
+      <h3>🚀 How it works</h3>
+      <ol class="steps-list">
+        <li>
+          <div class="step-num">1</div>
+          <div class="step-text">Register with your name and a 4-digit PIN — no email, no real money, no risk.</div>
+        </li>
+        <li>
+          <div class="step-num">2</div>
+          <div class="step-text">Receive ₹1,00,000 in virtual capital instantly.</div>
+        </li>
+        <li>
+          <div class="step-num">3</div>
+          <div class="step-text">Search and trade real NSE stocks using live prices — Market, Limit, or Stop-loss orders.</div>
+        </li>
+        <li>
+          <div class="step-num">4</div>
+          <div class="step-text">Track your portfolio, P&L, and compete on the family leaderboard.</div>
+        </li>
+        <li>
+          <div class="step-num">5</div>
+          <div class="step-text">Earn XP, level up, and build daily streaks as you learn and trade.</div>
+        </li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h3>🛠️ Built with</h3>
+      <p>FinSaathi is built end-to-end as a personal learning project — Python and Flask for the backend, live NSE data via Yahoo Finance, a Supabase cloud database so your progress is never lost, and hosted on Render.</p>
+      <div class="pill-grid">
+        <span class="tech-pill">Python</span>
+        <span class="tech-pill">Flask</span>
+        <span class="tech-pill">Supabase</span>
+        <span class="tech-pill">Render</span>
+        <span class="tech-pill">Yahoo Finance API</span>
+        <span class="tech-pill">Claude (Anthropic)</span>
+      </div>
+    </div>
+
+    <div class="disclaimer">
+      <h3>⚠️ Important disclaimer</h3>
+      <p>FinSaathi uses 100% virtual money — no real funds are ever involved, deposited, or at risk. This platform is built purely for educational purposes and is not a registered broker, investment advisor, or financial institution.</p>
+      <p>Nothing on FinSaathi constitutes real financial or investment advice. Stock prices shown are real and sourced from public market data, but all trading activity here is simulated. Please consult a SEBI-registered advisor before making any real investment decisions.</p>
+    </div>
+
+    <div class="signature">
+      Built with care by <strong>Akshit</strong>, for the people who taught me everything except how to invest.
+    </div>
+
+    {% if not logged_in %}
+    <div class="cta-row">
+      <a href="/" class="cta-btn">Get started — it's free</a>
+    </div>
+    {% endif %}
+
+  </div>
+</body>
+</html>

@@ -333,14 +333,18 @@ def register():
     users = load_json("data/users.json")
     name = data.get("name", "").strip().lower()
     pin = data.get("pin", "").strip()
+    recovery_answer = data.get("recovery_answer", "").strip().lower()
 
     if name in users:
         return jsonify({"success": False, "error": "Name already taken"})
     if len(pin) < 4:
         return jsonify({"success": False, "error": "PIN must be 4+ digits"})
+    if not recovery_answer:
+        return jsonify({"success": False, "error": "Please answer the recovery question"})
 
     users[name] = {
         "pin": pin,
+        "recovery_answer": recovery_answer,
         "balance": STARTING_BALANCE,
         "joined": datetime.now().isoformat(),
         "watchlist": []
@@ -358,6 +362,46 @@ def register():
 def logout():
     session.clear()
     return redirect("/")
+@app.route("/api/recover-check", methods=["POST"])
+def api_recover_check():
+    data = request.json
+    name = data.get("name", "").strip().lower()
+    answer = data.get("answer", "").strip().lower()
+
+    users = load_json("data/users.json")
+    if name not in users:
+        return jsonify({"success": False, "error": "No account found with that name"})
+
+    stored_answer = users[name].get("recovery_answer", "")
+    if not stored_answer:
+        return jsonify({"success": False, "error": "This account has no recovery answer set. Please contact Akshit."})
+
+    if stored_answer != answer:
+        return jsonify({"success": False, "error": "That answer doesn't match our records"})
+
+    return jsonify({"success": True})
+
+@app.route("/api/reset-pin", methods=["POST"])
+def api_reset_pin():
+    data = request.json
+    name = data.get("name", "").strip().lower()
+    answer = data.get("answer", "").strip().lower()
+    new_pin = data.get("new_pin", "").strip()
+
+    users = load_json("data/users.json")
+    if name not in users:
+        return jsonify({"success": False, "error": "No account found with that name"})
+
+    stored_answer = users[name].get("recovery_answer", "")
+    if stored_answer != answer:
+        return jsonify({"success": False, "error": "Recovery answer does not match"})
+
+    if len(new_pin) < 4:
+        return jsonify({"success": False, "error": "New PIN must be 4+ digits"})
+
+    users[name]["pin"] = new_pin
+    save_json("data/users.json", users)
+    return jsonify({"success": True})
 
 @app.route("/dashboard")
 def dashboard():
@@ -370,6 +414,11 @@ def learn():
     if "user" not in session:
         return redirect("/")
     return render_template("learn.html", username=session["user"])
+@app.route("/about")
+def about():
+    if "user" in session:
+        return render_template("about.html", username=session["user"], logged_in=True)
+    return render_template("about.html", username=None, logged_in=False)
 
 @app.route("/api/portfolio")
 def api_portfolio():
