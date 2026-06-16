@@ -38,6 +38,14 @@
     .card { background: white; border-radius: 12px; padding: 1.2rem;
             border: 1px solid var(--border); }
     .add-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .watchlist-search-dropdown { position: absolute; top: 100%; left: 0; right: 0;
+        background: #fff; border: 1px solid #e0e0e0; border-radius: 8px;
+        margin-top: 4px; max-height: 240px; overflow-y: auto; z-index: 50;
+        display: none; box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+    .watchlist-search-item { padding: 10px 14px; cursor: pointer; font-size: 0.88rem;
+        display: flex; justify-content: space-between; align-items: center; }
+    .watchlist-search-item:hover { background: #F4F3FF; }
+    .watchlist-search-item .wsname { color: #888; font-size: 0.75rem; }
     .add-row input { flex: 1; padding: 0.7rem; border: 1.5px solid var(--border);
                      border-radius: 8px; font-size: 0.95rem; }
     .add-row button { background: var(--brand); color: white; border: none;
@@ -121,11 +129,13 @@
     <h3>Your watchlist</h3>
     <div id="market-banner" class="market-banner">Checking market status...</div>
     <div class="card">
-      <div class="add-row">
-        <input id="new-symbol" type="text" placeholder="Add stock e.g. WIPRO, ITC, SBIN"
-               oninput="this.value=this.value.toUpperCase()"
-               onkeydown="if(event.key==='Enter') addStock()">
-        <button onclick="addStock()">Add</button>
+      <div class="add-row" style="position:relative">
+        <div style="flex:1;position:relative">
+          <input id="new-symbol" type="text" placeholder="Search stock e.g. Reliance, TCS, HDFC Bank"
+                 autocomplete="off">
+          <div id="watchlist-search-dropdown" class="watchlist-search-dropdown"></div>
+        </div>
+        <button onclick="addSelectedStock()">Add</button>
       </div>
       <div id="error-box"></div>
       <div id="watchlist-body">
@@ -220,8 +230,42 @@
       window.location = '/stock/' + symbol;
     }
 
-    async function addStock() {
-      const symbol = document.getElementById('new-symbol').value.trim();
+    let selectedNewStock = null;
+    let watchlistSearchTimer;
+
+    document.getElementById('new-symbol').addEventListener('input', () => {
+      selectedNewStock = null;
+      clearTimeout(watchlistSearchTimer);
+      const q = document.getElementById('new-symbol').value.trim();
+      const dropdown = document.getElementById('watchlist-search-dropdown');
+      if (q.length < 2) { dropdown.style.display = 'none'; return; }
+      watchlistSearchTimer = setTimeout(async () => {
+        const res = await fetch('/api/search-stocks?q=' + encodeURIComponent(q));
+        const items = await res.json();
+        if (!items.length) { dropdown.style.display = 'none'; return; }
+        dropdown.innerHTML = items.map(s => `
+          <div class="watchlist-search-item" onclick="selectNewStock('${s.symbol}', '${s.name.replace(/'/g, "\\'")}')">
+            <div><b>${s.symbol}</b><div class="wsname">${s.name}</div></div>
+          </div>
+        `).join('');
+        dropdown.style.display = 'block';
+      }, 300);
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.add-row')) {
+        document.getElementById('watchlist-search-dropdown').style.display = 'none';
+      }
+    });
+
+    function selectNewStock(symbol, name) {
+      selectedNewStock = symbol;
+      document.getElementById('new-symbol').value = symbol + ' — ' + name;
+      document.getElementById('watchlist-search-dropdown').style.display = 'none';
+    }
+
+    async function addSelectedStock() {
+      const symbol = selectedNewStock || document.getElementById('new-symbol').value.trim().toUpperCase();
       if (!symbol) return;
       const res = await fetch('/api/watchlist/add', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -235,8 +279,9 @@
       } else {
         errBox.innerHTML = '';
         document.getElementById('new-symbol').value = '';
+        selectedNewStock = null;
         loadWatchlist();
-        if (window.showToast) showToast(symbol.toUpperCase() + ' added to watchlist');
+        if (window.showToast) showToast(symbol + ' added to watchlist');
       }
     }
 

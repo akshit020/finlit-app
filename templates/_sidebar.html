@@ -12,6 +12,13 @@
   .fs-sidebar-add-btn:hover { background:#F4F3FF; }
   .fs-add-row { display:none; gap:4px; margin-bottom:0.6rem; }
   .fs-add-row.show { display:flex; }
+  .fs-search-dropdown { position:absolute; top:100%; left:0; right:0; background:#fff;
+      border:1px solid #EFEFF5; border-radius:8px; margin-top:4px; max-height:200px;
+      overflow-y:auto; z-index:60; display:none; box-shadow:0 6px 20px rgba(0,0,0,0.1); }
+  .fs-search-item { padding:8px 10px; cursor:pointer; font-size:0.78rem;
+      display:flex; justify-content:space-between; align-items:center; }
+  .fs-search-item:hover { background:#F4F3FF; }
+  .fs-search-item .fssname { color:#8B8B9E; font-size:0.65rem; } 
   .fs-add-row input { flex:1; padding:0.4rem 0.5rem; border:1.5px solid #EFEFF5; border-radius:8px; font-size:0.8rem; }
   .fs-add-row button { background:#5B4FE5; color:#fff; border:none; border-radius:8px; padding:0.4rem 0.6rem; font-size:0.8rem; cursor:pointer; }
   .fs-sidebar-item { display:flex; justify-content:space-between; align-items:center; padding:0.7rem 0.5rem; border-radius:8px; cursor:pointer; border-bottom: 1px solid #F8F8FB; }
@@ -48,7 +55,10 @@
     <button class="fs-sidebar-add-btn" onclick="toggleSidebarAdd()">+</button>
   </div>
   <div class="fs-add-row" id="fs-add-row">
-    <input id="fs-add-input" type="text" placeholder="Symbol" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter') fsAddStock()">
+    <div style="flex:1;position:relative">
+      <input id="fs-add-input" type="text" placeholder="Search stock..." autocomplete="off">
+      <div id="fs-search-dropdown" class="fs-search-dropdown"></div>
+    </div>
     <button onclick="fsAddStock()">Add</button>
   </div>
   <div id="fs-sidebar-list">
@@ -73,9 +83,45 @@ function showToast(message, type = 'success') {
     }, 2200);
   }
 
+  let fsSelectedStock = null;
+  let fsSearchTimer;
+
+  document.addEventListener('input', (e) => {
+    if (e.target.id !== 'fs-add-input') return;
+    fsSelectedStock = null;
+    clearTimeout(fsSearchTimer);
+    const q = e.target.value.trim();
+    const dropdown = document.getElementById('fs-search-dropdown');
+    if (q.length < 2) { dropdown.style.display = 'none'; return; }
+    fsSearchTimer = setTimeout(async () => {
+      const res = await fetch('/api/search-stocks?q=' + encodeURIComponent(q));
+      const items = await res.json();
+      if (!items.length) { dropdown.style.display = 'none'; return; }
+      dropdown.innerHTML = items.map(s => `
+        <div class="fs-search-item" onclick="fsSelectStock('${s.symbol}', '${s.name.replace(/'/g, "\\'")}')">
+          <div><b>${s.symbol}</b><div class="fssname">${s.name}</div></div>
+        </div>
+      `).join('');
+      dropdown.style.display = 'block';
+    }, 300);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#fs-add-row')) {
+      const dropdown = document.getElementById('fs-search-dropdown');
+      if (dropdown) dropdown.style.display = 'none';
+    }
+  });
+
+  function fsSelectStock(symbol, name) {
+    fsSelectedStock = symbol;
+    document.getElementById('fs-add-input').value = symbol + ' — ' + name;
+    document.getElementById('fs-search-dropdown').style.display = 'none';
+  }
+
   async function fsAddStock() {
     const input = document.getElementById('fs-add-input');
-    const symbol = input.value.trim().toUpperCase();
+    const symbol = fsSelectedStock || input.value.trim().toUpperCase();
     if (!symbol) return;
     const res = await fetch('/api/watchlist/add', {
       method: 'POST', headers: {'Content-Type':'application/json'},
@@ -85,6 +131,7 @@ function showToast(message, type = 'success') {
     if (d.success) {
       showToast(symbol + ' added to watchlist');
       input.value = '';
+      fsSelectedStock = null;
       document.getElementById('fs-add-row').classList.remove('show');
     } else {
       showToast(d.error || 'Could not add stock', 'error');
