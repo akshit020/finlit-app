@@ -5,20 +5,24 @@ const FinSounds = (function() {
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
     return audioCtx;
   }
 
-  function tone(freq, startTime, duration, volume, type = 'sine') {
+  async function ensureRunning() {
     const ctx = getCtx();
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+    return ctx;
+  }
+
+  function tone(ctx, freq, startTime, duration, volume, type = 'sine') {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type;
     osc.frequency.value = freq;
     gain.gain.setValueAtTime(0, startTime);
-    gain.gain.linearRampToValueAtTime(volume, startTime + 0.01);
+    gain.gain.linearRampToValueAtTime(volume, startTime + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -27,37 +31,37 @@ const FinSounds = (function() {
   }
 
   return {
-    success() {
-      const ctx = getCtx();
+    async success() {
+      const ctx = await ensureRunning();
       const now = ctx.currentTime;
-      tone(523.25, now, 0.18, 0.15);
-      tone(659.25, now + 0.08, 0.22, 0.15);
+      tone(ctx, 523.25, now, 0.3, 0.5);
+      tone(ctx, 659.25, now + 0.12, 0.35, 0.5);
     },
-    coin() {
-      const ctx = getCtx();
+    async coin() {
+      const ctx = await ensureRunning();
       const now = ctx.currentTime;
-      tone(987.77, now, 0.10, 0.12, 'triangle');
-      tone(1318.51, now + 0.06, 0.18, 0.12, 'triangle');
+      tone(ctx, 987.77, now, 0.2, 0.45, 'triangle');
+      tone(ctx, 1318.51, now + 0.1, 0.3, 0.45, 'triangle');
     },
-    levelUp() {
-      const ctx = getCtx();
+    async levelUp() {
+      const ctx = await ensureRunning();
       const now = ctx.currentTime;
-      tone(523.25, now, 0.15, 0.15);
-      tone(659.25, now + 0.1, 0.15, 0.15);
-      tone(783.99, now + 0.2, 0.15, 0.15);
-      tone(1046.50, now + 0.3, 0.35, 0.18);
+      tone(ctx, 523.25, now, 0.25, 0.45);
+      tone(ctx, 659.25, now + 0.15, 0.25, 0.45);
+      tone(ctx, 783.99, now + 0.3, 0.25, 0.45);
+      tone(ctx, 1046.50, now + 0.45, 0.5, 0.5);
     },
-    error() {
-      const ctx = getCtx();
+    async error() {
+      const ctx = await ensureRunning();
       const now = ctx.currentTime;
-      tone(220, now, 0.18, 0.12, 'triangle');
-      tone(196, now + 0.12, 0.22, 0.12, 'triangle');
+      tone(ctx, 300, now, 0.3, 0.45, 'triangle');
+      tone(ctx, 220, now + 0.18, 0.35, 0.45, 'triangle');
     },
-    amo() {
-      const ctx = getCtx();
+    async amo() {
+      const ctx = await ensureRunning();
       const now = ctx.currentTime;
-      tone(440, now, 0.12, 0.1, 'triangle');
-      tone(440, now + 0.18, 0.12, 0.1, 'triangle');
+      tone(ctx, 523.25, now, 0.2, 0.4, 'triangle');
+      tone(ctx, 523.25, now + 0.28, 0.2, 0.4, 'triangle');
     }
   };
 })();
