@@ -8,6 +8,7 @@ import anthropic
 from dotenv import load_dotenv
 
 from gamification import update_streak, award_xp, get_gamification_data
+from nse_stocks import NSE_STOCK_NAMES
 
 load_dotenv()
 
@@ -173,7 +174,7 @@ STOCK_UNIVERSE = {
     "RAILTEL": {"name": "RailTel Corporation", "cap": "small"},
     "METROPOLIS": {"name": "Metropolis Healthcare", "cap": "small"}
 }
-STOCK_NAMES = {sym: info["name"] for sym, info in STOCK_UNIVERSE.items()}
+STOCK_NAMES = {**NSE_STOCK_NAMES, **{sym: info["name"] for sym, info in STOCK_UNIVERSE.items()}}
 
 STOCK_TAKES = {
     "RELIANCE": "India's largest company by market cap, spanning oil, telecom (Jio), and retail. Considered relatively stable for beginners due to its size and diversification.",
@@ -242,7 +243,8 @@ def execute_trade(username, symbol, action, qty, price):
         "qty": qty,
         "price": price,
         "total": total_cost,
-        "time": datetime.now().isoformat()
+        "time": datetime.now().isoformat(),
+        "status": "executed"
     })
 
     save_json("data/users.json", users)
@@ -262,6 +264,21 @@ def load_pending_orders():
 def save_pending_orders(data):
     save_json("data/pending_orders.json", data)
 
+def get_next_market_close(created_at_str):
+    """Return the datetime of the next market close after an order was created."""
+    created = datetime.fromisoformat(created_at_str)
+    candidate = created.replace(hour=15, minute=30, second=0, microsecond=0)
+    if created.hour >= 15 and created.minute >= 30:
+        candidate += timedelta(days=1)
+    while candidate.weekday() >= 5:
+        candidate += timedelta(days=1)
+    return candidate
+
+def get_same_day_market_close(created_at_str):
+    """Return 3:30 PM on the same calendar day the order was created."""
+    created = datetime.fromisoformat(created_at_str)
+    return created.replace(hour=15, minute=30, second=0, microsecond=0)
+
 def check_pending_orders(username):
     pending = load_pending_orders()
     user_orders = pending.get(username, [])
@@ -270,10 +287,22 @@ def check_pending_orders(username):
 
     executed = []
     market_open_now = is_market_open()
+    now = get_ist_time().replace(tzinfo=None)
 
     for order in user_orders:
         if order["status"] != "pending":
             continue
+
+        if order["order_type"] == "amo":
+            expiry = get_next_market_close(order["created_at"])
+            if now > expiry:
+                order["status"] = "expired"
+                continue
+        else:
+            same_day_close = get_same_day_market_close(order["created_at"])
+            if now > same_day_close:
+                order["status"] = "expired"
+                continue
 
         triggered = False
         exec_price = None
@@ -570,9 +599,49 @@ def orders():
 def api_orders():
     if "user" not in session:
         return jsonify({"error": "Not logged in"}), 401
+
+    username = session["user"]
     trades = load_json("data/trades.json")
-    user_trades = trades.get(session["user"], [])
-    return jsonify(list(reversed(user_trades)))
+    user_trades = trades.get(username, [])
+
+    executed_orders = []
+    for t in user_trades:
+        executed_orders.append({
+            "symbol": t["symbol"],
+            "action": t["action"],
+            "qty": t["qty"],
+            "price": t["price"],
+            "total": t["total"],
+            "time": t["time"],
+            "order_type": t.get("order_type", "market"),
+            "status": "Executed"
+        })
+
+    check_pending_orders(username)
+    pending = load_pending_orders()
+    user_pending = pending.get(username, [])
+
+    for o in user_pending:
+        status_map = {
+            "pending": "Placed",
+            "executed": "Executed",
+            "expired": "Expired",
+            "cancelled": "Cancelled"
+        }
+        executed_orders.append({
+            "id": o.get("id", ""),
+            "symbol": o["symbol"],
+            "action": o["action"],
+            "qty": o["qty"],
+            "price": o.get("executed_price") or o.get("trigger_price", 0),
+            "total": o["qty"] * (o.get("executed_price") or o.get("trigger_price", 0)),
+            "time": o.get("executed_at") or o["created_at"],
+            "order_type": o["order_type"],
+            "status": status_map.get(o["status"], o["status"].title())
+        })
+
+    executed_orders.sort(key=lambda x: x["time"], reverse=True)
+    return jsonify(executed_orders)
 
 @app.route("/watchlist")
 def watchlist():
@@ -653,14 +722,28 @@ def api_remove_watchlist():
 @app.route("/api/search-stocks")
 def api_search_stocks():
     q = request.args.get("q", "").upper().strip()
-    if not q:
+    if not q or len(q) < 2:
         return jsonify([])
+
     results = []
+    seen = set()
+
     for sym, info in STOCK_UNIVERSE.items():
         if q in sym or q in info["name"].upper():
             results.append({"symbol": sym, "name": info["name"], "cap": info["cap"]})
-    results.sort(key=lambda x: (not x["symbol"].startswith(q), x["symbol"]))
-    return jsonify(results[:8])
+            seen.add(sym)
+
+    for sym, name in NSE_STOCK_NAMES.items():
+        if sym in seen:
+            continue
+        if q in sym or q in name.upper():
+            results.append({"symbol": sym, "name": name, "cap": "other"})
+            seen.add(sym)
+        if len(results) >= 30:
+            break
+
+    results.sort(key=lambda x: (not x["symbol"].startswith(q), len(x["symbol"]), x["symbol"]))
+    return jsonify(results[:10])
 
 @app.route("/api/market-movers")
 def api_market_movers():
@@ -781,7 +864,10 @@ def api_cancel_order():
 
     pending = load_pending_orders()
     user_orders = pending.get(username, [])
-    pending[username] = [o for o in user_orders if o["id"] != order_id]
+    for o in user_orders:
+        if o["id"] == order_id:
+            o["status"] = "cancelled"
+    pending[username] = user_orders
     save_pending_orders(pending)
 
     return jsonify({"success": True})

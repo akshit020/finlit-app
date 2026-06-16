@@ -119,6 +119,7 @@
     .cap-large { background: #E6F1FB; color: #185FA5; }
     .cap-mid { background: #FAEEDA; color: #854F0B; }
     .cap-small { background: #EAF3DE; color: #3B6D11; }
+    .cap-other { background: var(--border); color: var(--muted); }
 
     .movers-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
     .mover-cat { border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
@@ -558,6 +559,8 @@
         }
         if (d.success) {
           loadPortfolio(); loadLeaderboard(); loadGamification();
+          document.getElementById('modal-confirm-btn').style.display = 'none';
+          setTimeout(closeModal, 2000);
         }
       } else {
         const triggerPrice = parseFloat(document.getElementById('modal-trigger').value);

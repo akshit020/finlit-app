@@ -65,33 +65,24 @@
   {% include '_sidebar.html' %}
   <div class="main-content">
   <div class="container">
-    <h3>Pending orders</h3>
-    <div class="card" style="margin-bottom:1.5rem">
-      <table>
-        <thead>
-          <tr><th>Stock</th><th>Type</th><th>Action</th><th>Qty</th><th>Trigger price</th><th>Current price</th><th></th></tr>
-        </thead>
-        <tbody id="pending-body">
-          <tr><td colspan="7" class="empty">Loading...</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3>Order history — {{ username.title() }}</h3>
+    <h3>All orders — {{ username.title() }}</h3>
     <div class="card">
       <table>
         <thead>
           <tr>
             <th>Time</th>
             <th>Stock</th>
+            <th>Type</th>
             <th>Action</th>
             <th>Qty</th>
             <th>Price</th>
             <th>Total</th>
+            <th>Status</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="orders-body">
-          <tr><td colspan="6" class="empty">Loading...</td></tr>
+          <tr><td colspan="9" class="empty">Loading...</td></tr>
         </tbody>
       </table>
     </div>
@@ -100,61 +91,54 @@
   </div>
 
   <script>
+    function statusBadge(status) {
+      const colors = {
+        "Executed": "background:var(--mint-bg, #f0fdf4);color:#166534",
+        "Placed": "background:var(--gold-bg, #fffbeb);color:#92400e",
+        "Cancelled": "background:#f3f4f6;color:#6b7280",
+        "Expired": "background:var(--coral-bg, #fef2f2);color:#991b1b"
+      };
+      const style = colors[status] || "background:#f3f4f6;color:#6b7280";
+      return `<span style="${style};font-size:0.75rem;font-weight:600;padding:3px 10px;border-radius:12px;white-space:nowrap">${status}</span>`;
+    }
+
     async function loadOrders() {
       const res = await fetch('/api/orders');
       const orders = await res.json();
       const tbody = document.getElementById('orders-body');
       if (!orders.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty">No trades yet — go make your first trade!</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty">No orders yet — go make your first trade!</td></tr>';
         return;
       }
       tbody.innerHTML = orders.map(o => {
         const date = new Date(o.time).toLocaleString('en-IN');
+        const cancelBtn = o.status === 'Placed'
+          ? `<button class="remove-btn" onclick="cancelOrder('${o.id || ''}')">Cancel</button>`
+          : '';
         return `<tr>
           <td style="color:#888;font-size:0.85rem">${date}</td>
           <td><strong>${o.symbol}</strong></td>
+          <td style="text-transform:capitalize">${o.order_type}</td>
           <td class="${o.action}">${o.action.toUpperCase()}</td>
           <td>${o.qty}</td>
           <td>₹${o.price.toLocaleString('en-IN')}</td>
           <td>₹${o.total.toLocaleString('en-IN')}</td>
+          <td>${statusBadge(o.status)}</td>
+          <td>${cancelBtn}</td>
         </tr>`;
       }).join('');
     }
 
-    async function loadPending() {
-      const res = await fetch('/api/pending-orders');
-      const d = await res.json();
-      const body = document.getElementById('pending-body');
-      if (!d.pending || !d.pending.length) {
-        body.innerHTML = '<tr><td colspan="7" class="empty">No pending orders</td></tr>';
-      } else {
-        body.innerHTML = d.pending.map(o => `
-          <tr>
-            <td><strong>${o.symbol}</strong></td>
-            <td>${o.order_type === 'limit' ? 'Limit' : 'Stop-loss'}</td>
-            <td class="${o.action}">${o.action.toUpperCase()}</td>
-            <td>${o.qty}</td>
-            <td>₹${o.trigger_price}</td>
-            <td>₹${o.current_price ?? '—'}</td>
-            <td><button class="remove-btn" onclick="cancelOrder('${o.id}')">Cancel</button></td>
-          </tr>
-        `).join('');
-      }
-      if (d.executed_now && d.executed_now.length) {
-        loadOrders();
-      }
-    }
-
     async function cancelOrder(id) {
+      if (!id) return;
       await fetch('/api/cancel-order', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({id})
       });
-      loadPending();
+      loadOrders();
     }
 
     loadOrders();
-    loadPending();
   </script>
   <script src="/static/sounds.js"></script>
 </body>
