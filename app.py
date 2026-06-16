@@ -21,27 +21,41 @@ _movers_cache = {"data": None, "time": None}
 
 from db import load_json, save_json
 
-def get_price(symbol):
-    try:
-        ticker = yf.Ticker(symbol + ".NS")
-        data = ticker.history(period="1d")
-        if data.empty:
-            return None
-        return round(float(data["Close"].iloc[-1]), 2)
-    except:
-        return None
+import time
+import requests as req
 
-def get_price_and_prev(symbol):
-    try:
-        ticker = yf.Ticker(symbol + ".NS")
-        hist = ticker.history(period="5d")
-        if hist.empty:
-            return None, None
-        current = round(float(hist["Close"].iloc[-1]), 2)
-        prev = round(float(hist["Close"].iloc[-2]), 2) if len(hist) > 1 else current
-        return current, prev
-    except:
-        return None, None
+_yf_session = req.Session()
+_yf_session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+})
+
+def get_price(symbol, retries=2):
+    for attempt in range(retries):
+        try:
+            ticker = yf.Ticker(symbol + ".NS", session=_yf_session)
+            data = ticker.history(period="1d")
+            if not data.empty:
+                return round(float(data["Close"].iloc[-1]), 2)
+        except Exception as e:
+            print(f"get_price attempt {attempt+1} failed for {symbol}:", e)
+        if attempt < retries - 1:
+            time.sleep(1)
+    return None
+
+def get_price_and_prev(symbol, retries=2):
+    for attempt in range(retries):
+        try:
+            ticker = yf.Ticker(symbol + ".NS", session=_yf_session)
+            hist = ticker.history(period="5d")
+            if not hist.empty:
+                current = round(float(hist["Close"].iloc[-1]), 2)
+                prev = round(float(hist["Close"].iloc[-2]), 2) if len(hist) > 1 else current
+                return current, prev
+        except Exception as e:
+            print(f"get_price_and_prev attempt {attempt+1} failed for {symbol}:", e)
+        if attempt < retries - 1:
+            time.sleep(1)
+    return None, None
 
 def get_ist_time():
     return datetime.utcnow() + timedelta(hours=5, minutes=30)
