@@ -48,9 +48,12 @@ def get_price_and_prev(symbol, retries=2):
             ticker = yf.Ticker(symbol + ".NS", session=_yf_session)
             hist = ticker.history(period="5d")
             if not hist.empty:
-                current = round(float(hist["Close"].iloc[-1]), 2)
-                prev = round(float(hist["Close"].iloc[-2]), 2) if len(hist) > 1 else current
-                return current, prev
+                closes = hist["Close"].dropna()
+                if len(closes) >= 1:
+                    current = round(float(closes.iloc[-1]), 2)
+                    prev = round(float(closes.iloc[-2]), 2) if len(closes) > 1 else current
+                    if not math.isnan(current) and not math.isnan(prev):
+                        return current, prev
         except Exception as e:
             print(f"get_price_and_prev attempt {attempt+1} failed for {symbol}:", e)
         if attempt < retries - 1:
