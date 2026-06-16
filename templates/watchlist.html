@@ -231,10 +231,12 @@
       const errBox = document.getElementById('error-box');
       if (data.error) {
         errBox.innerHTML = `<div class="err">${data.error}</div>`;
+        if (window.showToast) showToast(data.error, 'error');
       } else {
         errBox.innerHTML = '';
         document.getElementById('new-symbol').value = '';
         loadWatchlist();
+        if (window.showToast) showToast(symbol.toUpperCase() + ' added to watchlist');
       }
     }
 
@@ -244,6 +246,7 @@
         body: JSON.stringify({symbol})
       });
       loadWatchlist();
+      if (window.showToast) showToast(symbol + ' removed from watchlist');
     }
 
     function openModal(symbol, name, price, side) {

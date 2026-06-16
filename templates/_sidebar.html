@@ -27,6 +27,13 @@
   .fs-si-chg.up { color:#00B386; }
   .fs-si-chg.down { color:#E2434F; }
   .fs-sidebar-empty { font-size:0.78rem; color:#8B8B9E; padding:0.5rem 0.3rem; }
+  .fs-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+              background: #1A1A2E; color: #fff; padding: 10px 20px; border-radius: 10px;
+              font-size: 0.85rem; font-weight: 500; opacity: 0; pointer-events: none;
+              transition: opacity 0.25s ease, transform 0.25s ease; z-index: 200; }
+  .fs-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .fs-toast.success { background: #00664D; }
+  .fs-toast.error { background: #A22A33; } 
   .fs-sidebar-footer { margin-top:0.8rem; padding-top:0.6rem; border-top:1px solid #EFEFF5; }
   .fs-sidebar-footer a { font-size:0.78rem; color:#5B4FE5; text-decoration:none; font-weight:600; }
   .main-content { flex:1; min-width:0; }
@@ -51,21 +58,37 @@
     <a href="/watchlist">Manage watchlist →</a>
   </div>
 </aside>
-
+<div id="fs-toast" class="fs-toast"></div>
 <script>
   function toggleSidebarAdd() {
     document.getElementById('fs-add-row').classList.toggle('show');
   }
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('fs-toast');
+    toast.textContent = message;
+    toast.className = 'fs-toast show ' + type;
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => {
+      toast.classList.remove('show');
+    }, 2200);
+  }
 
   async function fsAddStock() {
     const input = document.getElementById('fs-add-input');
-    const symbol = input.value.trim();
+    const symbol = input.value.trim().toUpperCase();
     if (!symbol) return;
-    await fetch('/api/watchlist/add', {
+    const res = await fetch('/api/watchlist/add', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({symbol})
     });
-    input.value = '';
+    const d = await res.json();
+    if (d.success) {
+      showToast(symbol + ' added to watchlist');
+      input.value = '';
+      document.getElementById('fs-add-row').classList.remove('show');
+    } else {
+      showToast(d.error || 'Could not add stock', 'error');
+    }
     loadSidebarWatchlist();
   }
 
