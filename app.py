@@ -485,7 +485,10 @@ def api_price(symbol):
     if price:
         return jsonify({"price": price, "symbol": symbol.upper()})
     return jsonify({"error": "Symbol not found"}), 404
-
+@app.route("/api/debug-price-prev/<symbol>")
+def api_debug_price_prev(symbol):
+    current, prev = get_price_and_prev(symbol.upper())
+    return jsonify({"symbol": symbol.upper(), "current": current, "prev": prev})
 @app.route("/api/trade", methods=["POST"])
 def api_trade():
     if "user" not in session:
