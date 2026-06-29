@@ -460,6 +460,53 @@ def learn():
     if "user" not in session:
         return redirect("/")
     return render_template("learn.html", username=session["user"])
+@app.route("/spin")
+def spin():
+    if "user" not in session:
+        return redirect("/")
+    return render_template("spin.html", username=session["user"])
+
+@app.route("/api/spin", methods=["POST"])
+def api_spin():
+    if "user" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    username = session["user"]
+    users = load_json("data/users.json")
+    user = users.get(username, {})
+
+    today = get_ist_time().date().isoformat()
+    if user.get("last_spin") == today:
+        return jsonify({"error": "You already spun today! Come back tomorrow.", "already_spun": True})
+
+    import random
+    prizes = [
+        {"label": "50 XP", "type": "xp", "value": 50, "color": "#5B4FE5"},
+        {"label": "100 FinCoins", "type": "coins", "value": 100, "color": "#FFD166"},
+        {"label": "200 XP", "type": "xp", "value": 200, "color": "#00B386"},
+        {"label": "₹500 Bonus", "type": "cash", "value": 500, "color": "#FF8A5B"},
+        {"label": "25 XP", "type": "xp", "value": 25, "color": "#8B8B9E"},
+        {"label": "500 FinCoins", "type": "coins", "value": 500, "color": "#E2434F"},
+        {"label": "₹1000 Bonus", "type": "cash", "value": 1000, "color": "#5B4FE5"},
+        {"label": "150 XP", "type": "xp", "value": 150, "color": "#00B386"},
+    ]
+
+    weights = [25, 20, 15, 15, 10, 8, 5, 2]
+    prize = random.choices(prizes, weights=weights, k=1)[0]
+    prize_index = prizes.index(prize)
+
+    if prize["type"] == "xp":
+        user["xp"] = user.get("xp", 0) + prize["value"]
+    elif prize["type"] == "coins":
+        user["coins"] = user.get("coins", 0) + prize["value"]
+    elif prize["type"] == "cash":
+        user["balance"] = round(user.get("balance", 0) + prize["value"], 2)
+
+    user["last_spin"] = today
+    users[username] = user
+    save_json("data/users.json", users)
+
+    return jsonify({"prize": prize, "prize_index": prize_index, "prizes": prizes})
 @app.route("/about")
 def about():
     if "user" in session:

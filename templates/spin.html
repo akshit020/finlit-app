@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Spin — FinSaathi</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0A0A1A;
+      color: #fff;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated starfield background */
+    .stars {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(91,79,229,0.15) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(0,179,134,0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 60% 80%, rgba(255,209,102,0.08) 0%, transparent 50%),
+        #0A0A1A;
+      z-index: 0;
+    }
+
+    .star {
+      position: fixed; border-radius: 50%; background: #fff;
+      animation: twinkle var(--d, 3s) infinite ease-in-out;
+    }
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.1; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.3); }
+    }
+
+    nav {
+      position: relative; z-index: 10;
+      background: rgba(10,10,26,0.8);
+      backdrop-filter: blur(12px);
+      padding: 1rem 1.5rem;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid rgba(91,79,229,0.3);
+    }
+    nav h2 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 1.3rem; font-weight: 800;
+      background: linear-gradient(135deg, #5B4FE5, #00B386);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    nav a { color: rgba(255,255,255,0.6); text-decoration: none; font-size: 0.9rem; margin-left: 1.5rem; }
+    nav a:hover { color: #fff; }
+
+    .page {
+      position: relative; z-index: 5;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 2rem 1rem 4rem;
+    }
+
+    .page-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 2.8rem; font-weight: 800;
+      background: linear-gradient(135deg, #FFD166, #FF8A5B, #E2434F);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      text-align: center; margin-bottom: 0.3rem;
+      text-shadow: none;
+      filter: drop-shadow(0 0 20px rgba(255,209,102,0.4));
+    }
+    .page-sub {
+      color: rgba(255,255,255,0.5); font-size: 0.95rem;
+      margin-bottom: 2.5rem; text-align: center;
+    }
+
+    .wheel-outer {
+      position: relative;
+      margin-bottom: 2rem;
+    }
+
+    /* Glowing ring around wheel */
+    .wheel-glow {
+      position: absolute;
+      top: -12px; left: -12px; right: -12px; bottom: -12px;
+      border-radius: 50%;
+      background: conic-gradient(#5B4FE5, #00B386, #FFD166, #FF8A5B, #E2434F, #5B4FE5);
+      animation: rotatGlow 4s linear infinite;
+      filter: blur(8px);
+      opacity: 0.7;
+      z-index: -1;
+    }
+    @keyframes rotatGlow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    .wheel-pointer {
+      position: absolute; top: -24px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 2.5rem; z-index: 10;
+      filter: drop-shadow(0 0 8px #FFD166);
+      animation: bounce 1s ease-in-out infinite;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(-5px); }
+    }
+
+    canvas {
+      border-radius: 50%;
+      box-shadow: 0 0 40px rgba(91,79,229,0.5), 0 0 80px rgba(91,79,229,0.2);
+      display: block;
+    }
+
+    .spin-btn {
+      position: relative;
+      background: linear-gradient(135deg, #FFD166, #FF8A5B);
+      color: #1A1A2E;
+      border: none;
+      padding: 1.1rem 4rem;
+      border-radius: 50px;
+      font-size: 1.3rem;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      letter-spacing: 2px;
+      box-shadow: 0 0 30px rgba(255,209,102,0.5), 0 0 60px rgba(255,209,102,0.2);
+      transition: all 0.2s;
+      overflow: hidden;
+    }
+    .spin-btn::before {
+      content: '';
+      position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+      background: linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.3) 50%, transparent 60%);
+      transform: translateX(-100%);
+      animation: shimmer 2s infinite;
+    }
+    @keyframes shimmer { to { transform: translateX(100%); } }
+    .spin-btn:hover { transform: scale(1.06); box-shadow: 0 0 40px rgba(255,209,102,0.7); }
+    .spin-btn:disabled {
+      background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.3);
+      cursor: not-allowed; transform: none;
+      box-shadow: none; letter-spacing: normal;
+    }
+    .spin-btn:disabled::before { display: none; }
+
+    .result-card {
+      display: none;
+      background: linear-gradient(135deg, rgba(91,79,229,0.2), rgba(0,179,134,0.1));
+      border: 1px solid rgba(91,79,229,0.4);
+      backdrop-filter: blur(16px);
+      border-radius: 24px;
+      padding: 2.5rem 2rem;
+      text-align: center;
+      margin-top: 2rem;
+      max-width: 360px; width: 100%;
+      box-shadow: 0 0 40px rgba(91,79,229,0.3);
+    }
+    .result-card.show { display: block; animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    @keyframes popIn {
+      from { transform: scale(0.5) rotate(-10deg); opacity: 0; }
+      to { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+    .result-emoji { font-size: 4rem; margin-bottom: 0.8rem; display: block; animation: spin3d 1s ease; }
+    @keyframes spin3d { from { transform: rotateY(0deg) scale(0); } to { transform: rotateY(720deg) scale(1); } }
+    .result-won { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1rem; color: rgba(255,255,255,0.6); margin-bottom: 0.5rem; }
+    .result-prize {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 2.5rem; font-weight: 800;
+      background: linear-gradient(135deg, #FFD166, #FF8A5B);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+      filter: drop-shadow(0 0 10px rgba(255,209,102,0.5));
+    }
+    .result-sub { color: rgba(255,255,255,0.5); font-size: 0.88rem; margin-bottom: 1.5rem; }
+    .home-btn {
+      display: inline-block;
+      background: linear-gradient(135deg, #5B4FE5, #00B386);
+      color: #fff; padding: 0.8rem 2rem; border-radius: 12px;
+      text-decoration: none; font-weight: 700; font-size: 0.95rem;
+      box-shadow: 0 4px 16px rgba(91,79,229,0.4);
+    }
+
+    .already-msg {
+      background: linear-gradient(135deg, rgba(255,209,102,0.15), rgba(255,138,91,0.1));
+      border: 1px solid rgba(255,209,102,0.3);
+      border-radius: 20px; padding: 2rem; text-align: center;
+      max-width: 320px; margin-top: 2rem; backdrop-filter: blur(12px);
+    }
+    .already-msg p { font-weight: 700; color: #FFD166; font-size: 1.1rem; margin-bottom: 0.4rem; }
+    .already-msg small { color: rgba(255,255,255,0.5); }
+
+    .prize-list {
+      display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+      max-width: 400px; margin-bottom: 2rem;
+    }
+    .prize-pill {
+      padding: 5px 14px; border-radius: 20px; font-size: 0.78rem; font-weight: 600;
+      border: 1px solid rgba(255,255,255,0.15); color: #fff;
+      background: rgba(255,255,255,0.05); backdrop-filter: blur(8px);
+    }
+  </style>
+</head>
+<body>
+  <div class="stars" id="stars"></div>
+
+  <nav>
+    <h2>FinSaathi</h2>
+    <div>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/logout">Logout</a>
+    </div>
+  </nav>
+
+  <div class="page">
+    <p class="page-title">🎰 Daily Spin</p>
+    <p class="page-sub">One spin per day — come back every day to earn rewards!</p>
+
+    <div class="prize-list" id="prize-pills"></div>
+
+    <div class="wheel-outer">
+      <div class="wheel-glow"></div>
+      <div class="wheel-pointer">▼</div>
+      <canvas id="wheel" width="340" height="340"></canvas>
+    </div>
+
+    <button class="spin-btn" id="spin-btn" onclick="doSpin()">🎰 SPIN!</button>
+
+    <div class="result-card" id="result-card">
+      <span class="result-emoji" id="result-emoji">🎉</span>
+      <p class="result-won">You won</p>
+      <p class="result-prize" id="result-prize">—</p>
+      <p class="result-sub" id="result-sub">—</p>
+      <a href="/dashboard" class="home-btn">Back to dashboard →</a>
+    </div>
+
+    <div class="already-msg" id="already-msg" style="display:none">
+      <p>🌙 Already spun today!</p>
+      <small>Come back tomorrow for another chance to win.</small><br><br>
+      <a href="/dashboard" class="home-btn">Back to dashboard →</a>
+    </div>
+  </div>
+
+  <script>
+    // Generate stars
+    const starsEl = document.getElementById('stars');
+    for (let i = 0; i < 80; i++) {
+      const star = document.createElement('div');
+      star.className = 'star';
+      const size = Math.random() * 3 + 1;
+      star.style.cssText = `
+        width:${size}px; height:${size}px;
+        top:${Math.random()*100}%; left:${Math.random()*100}%;
+        --d:${2 + Math.random()*4}s;
+        animation-delay:${Math.random()*4}s;
+      `;
+      starsEl.appendChild(star);
+    }
+
+    const PRIZES = [
+      { label: "50 XP", color: "#5B4FE5", type: "xp" },
+      { label: "100 FinCoins", color: "#FFD166", type: "coins" },
+      { label: "200 XP", color: "#00B386", type: "xp" },
+      { label: "₹500 Bonus", color: "#FF8A5B", type: "cash" },
+      { label: "25 XP", color: "#666699", type: "xp" },
+      { label: "500 FinCoins", color: "#E2434F", type: "coins" },
+      { label: "₹1000 Bonus", color: "#8B4FE5", type: "cash" },
+      { label: "150 XP", color: "#00664D", type: "xp" },
+    ];
+
+    // Prize pills
+    const pillsEl = document.getElementById('prize-pills');
+    PRIZES.forEach(p => {
+      const pill = document.createElement('div');
+      pill.className = 'prize-pill';
+      pill.textContent = p.label;
+      pill.style.borderColor = p.color + '55';
+      pill.style.color = p.color;
+      pillsEl.appendChild(pill);
+    });
+
+    const canvas = document.getElementById('wheel');
+    const ctx = canvas.getContext('2d');
+    const numSegments = PRIZES.length;
+    const arc = (2 * Math.PI) / numSegments;
+    let currentAngle = 0;
+    let isSpinning = false;
+
+    function drawWheel(angle) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const r = cx - 4;
+
+      for (let i = 0; i < numSegments; i++) {
+        const start = angle + i * arc;
+        const end = start + arc;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, r, start, end);
+        ctx.closePath();
+        ctx.fillStyle = PRIZES[i].color;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(start + arc / 2);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 13px Plus Jakarta Sans, sans-serif';
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 4;
+        ctx.fillText(PRIZES[i].label, r - 14, 5);
+        ctx.restore();
+      }
+
+      // Centre hub
+      const hubGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 28);
+      hubGrad.addColorStop(0, '#fff');
+      hubGrad.addColorStop(1, '#EFEFF5');
+      ctx.beginPath();
+      ctx.arc(cx, cy, 28, 0, 2 * Math.PI);
+      ctx.fillStyle = hubGrad;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.fillStyle = '#5B4FE5';
+      ctx.font = 'bold 11px Plus Jakarta Sans';
+      ctx.textAlign = 'center';
+      ctx.fillText('SPIN', cx, cy + 4);
+    }
+
+    drawWheel(0);
+
+    async function doSpin() {
+      if (isSpinning) return;
+
+      const res = await fetch('/api/spin', { method: 'POST' });
+      const data = await res.json();
+
+      if (data.error && data.already_spun) {
+        document.getElementById('already-msg').style.display = 'block';
+        document.getElementById('spin-btn').disabled = true;
+        return;
+      }
+      if (data.error) { alert(data.error); return; }
+
+      isSpinning = true;
+      document.getElementById('spin-btn').disabled = true;
+      document.getElementById('spin-btn').textContent = 'Spinning...';
+
+      const targetIndex = data.prize_index;
+      const segmentAngle = targetIndex * arc + arc / 2;
+      const targetAngle = (2 * Math.PI - segmentAngle) % (2 * Math.PI);
+      const spins = (5 + Math.random() * 3) * 2 * Math.PI;
+      const totalRotation = spins + targetAngle - ((currentAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      const duration = 4500;
+      const start = performance.now();
+      const startAngle = currentAngle;
+
+      function easeOut(t) { return 1 - Math.pow(1 - t, 4); }
+
+      function animate(now) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        currentAngle = startAngle + totalRotation * easeOut(progress);
+        drawWheel(currentAngle);
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          isSpinning = false;
+          showResult(data.prize);
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
+    function showResult(prize) {
+      const emojis = { xp: '⚡', coins: '🪙', cash: '💰' };
+      document.getElementById('result-emoji').textContent = emojis[prize.type] || '🎉';
+      document.getElementById('result-prize').textContent = prize.label;
+      document.getElementById('result-sub').textContent =
+        prize.type === 'cash' ? '💸 Added to your virtual balance instantly!' :
+        prize.type === 'coins' ? '🪙 Added to your FinCoins!' : '⚡ Added to your XP!';
+      document.getElementById('result-card').classList.add('show');
+
+      setTimeout(() => {
+        confetti({ particleCount: 200, spread: 100, origin: { y: 0.4 },
+          colors: ['#5B4FE5', '#FFD166', '#00B386', '#FF8A5B', '#E2434F', '#fff'] });
+        setTimeout(() => {
+          confetti({ particleCount: 100, angle: 60, spread: 70, origin: { x: 0, y: 0.6 } });
+          confetti({ particleCount: 100, angle: 120, spread: 70, origin: { x: 1, y: 0.6 } });
+        }, 400);
+      }, 200);
+    }
+  </script>
+</body>
+</html>

@@ -1,15 +1,18 @@
  <style>
   .page-layout { display: flex; align-items: flex-start; }
   .fs-sidebar {
-    width: 320px; flex-shrink: 0; background: #fff; border-right: 1px solid #EFEFF5;
-    padding: 1.2rem; position: sticky; top: 1rem; max-height: calc(100vh - 2rem);
-    overflow-y: auto; border-radius: 0 12px 12px 0;
+    width: 280px; flex-shrink: 0;
+    background: #0C0C14;
+    border-right: 1px solid rgba(255,255,255,0.06);
+    padding: 1.2rem; position: sticky; top: 0;
+    height: 100vh; overflow-y: auto;
+    
   }
   .fs-sidebar-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem; }
   .fs-sidebar-head h4 { font-size:0.85rem; font-weight:700; color:#1A1A2E; margin:0; }
-  .fs-sidebar-add-btn { background:none; border:1.5px solid #EFEFF5; color:#5B4FE5; font-size:1rem;
+  .fs-sidebar-add-btn { background:none; border:1.5px solid rgba(91,79,229,0.4); color:#7B70FF; font-size:1rem;
                          cursor:pointer; line-height:1; padding:2px 8px; border-radius:6px; }
-  .fs-sidebar-add-btn:hover { background:#F4F3FF; }
+  .fs-sidebar-add-btn:hover { background:rgba(91,79,229,0.15); }
   .fs-add-row { display:none; gap:4px; margin-bottom:0.6rem; }
   .fs-add-row.show { display:flex; }
   .fs-search-dropdown { position:absolute; top:100%; left:0; right:0; background:#fff;
@@ -21,28 +24,28 @@
   .fs-search-item .fssname { color:#8B8B9E; font-size:0.65rem; } 
   .fs-add-row input { flex:1; padding:0.4rem 0.5rem; border:1.5px solid #EFEFF5; border-radius:8px; font-size:0.8rem; }
   .fs-add-row button { background:#5B4FE5; color:#fff; border:none; border-radius:8px; padding:0.4rem 0.6rem; font-size:0.8rem; cursor:pointer; }
-  .fs-sidebar-item { display:flex; justify-content:space-between; align-items:center; padding:0.7rem 0.5rem; border-radius:8px; cursor:pointer; border-bottom: 1px solid #F8F8FB; }
+  .fs-sidebar-item { display:flex; justify-content:space-between; align-items:center; padding:0.7rem 0.5rem; border-radius:8px; cursor:pointer; border-bottom: 1px solid rgba(255,255,255,0.04); }
   .fs-sidebar-item:last-child { border-bottom: none; }
   .fs-sidebar-item:hover { background:#F8F8FB; }
   .fs-si-sym { font-size:0.88rem; font-weight:700; }
   .fs-si-sym.up { color:#00B386; }
   .fs-si-sym.down { color:#E2434F; }
-  .fs-si-name { font-size:0.72rem; color:#8B8B9E; margin-top:1px; }
+  .fs-si-name { font-size:0.72rem; color:rgba(255,255,255,0.4); margin-top:1px; }
   .fs-si-right { text-align:right; }
-  .fs-si-price { font-size:0.85rem; font-weight:600; color:#1A1A2E; }
+  .fs-si-price { font-size:0.85rem; font-weight:600; color:rgba(255,255,255,0.9); }
   .fs-si-chg { font-size:0.74rem; margin-top:1px; }
   .fs-si-chg.up { color:#00B386; }
   .fs-si-chg.down { color:#E2434F; }
   .fs-sidebar-empty { font-size:0.78rem; color:#8B8B9E; padding:0.5rem 0.3rem; }
   .fs-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
-              background: #1A1A2E; color: #fff; padding: 10px 20px; border-radius: 10px;
+              background: rgba(13,13,36,0.95); border: 1px solid rgba(91,79,229,0.4); color: #fff; padding: 10px 20px; border-radius: 10px;
               font-size: 0.85rem; font-weight: 500; opacity: 0; pointer-events: none;
               transition: opacity 0.25s ease, transform 0.25s ease; z-index: 200; }
   .fs-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   .fs-toast.success { background: #00664D; }
   .fs-toast.error { background: #A22A33; } 
-  .fs-sidebar-footer { margin-top:0.8rem; padding-top:0.6rem; border-top:1px solid #EFEFF5; }
-  .fs-sidebar-footer a { font-size:0.78rem; color:#5B4FE5; text-decoration:none; font-weight:600; }
+  .fs-sidebar-footer { margin-top:0.8rem; padding-top:0.6rem; border-top:1px solid rgba(255,255,255,0.06); }
+  .fs-sidebar-footer a { font-size:0.78rem; color:#7B70FF; text-decoration:none; font-weight:600; }
   .main-content { flex:1; min-width:0; }
   @media (max-width: 900px) {
     .fs-sidebar { display:none; }
@@ -67,11 +70,40 @@
   <div class="fs-sidebar-footer">
     <a href="/watchlist">Manage watchlist →</a>
   </div>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 </aside>
 <div id="fs-toast" class="fs-toast"></div>
 <script>
   function toggleSidebarAdd() {
     document.getElementById('fs-add-row').classList.toggle('show');
+  }
+function fireConfetti() {
+    confetti({
+      particleCount: 120,
+      spread: 80,
+      origin: { y: 0.6 },
+      colors: ['#5B4FE5', '#00B386', '#FFD166', '#FF8A5B', '#E2434F']
+    });
+  }
+
+  function fireMegaConfetti() {
+    const duration = 2000;
+    const end = Date.now() + duration;
+    const interval = setInterval(() => {
+      if (Date.now() > end) { clearInterval(interval); return; }
+      confetti({ particleCount: 60, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#5B4FE5', '#FFD166', '#00B386'] });
+      confetti({ particleCount: 60, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#FF8A5B', '#E2434F', '#FFD166'] });
+    }, 200);
+  }
+
+  function fireStarConfetti() {
+    confetti({
+      particleCount: 80,
+      spread: 60,
+      origin: { y: 0.5 },
+      shapes: ['star'],
+      colors: ['#FFD166', '#FF8A5B', '#5B4FE5']
+    });
   }
 function showToast(message, type = 'success') {
     const toast = document.getElementById('fs-toast');
