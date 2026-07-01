@@ -3,6 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <title>Learn — FinSaathi</title>
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#6357FF">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FinSaathi">
+
   <style>
     body { font-family: system-ui, sans-serif; background: #f0f4f8;
            display: flex; justify-content: center; padding: 2rem; }
@@ -19,5 +26,13 @@
     <p>Coming soon! Missions and quizzes will appear here.</p>
     <a href="/dashboard">Back to dashboard</a>
   </div>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  });
+}
+</script>
 </body>
 </html>
